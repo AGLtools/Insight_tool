@@ -25,7 +25,7 @@ if %errorlevel% equ 0 (
     )
 )
 
-set REPO_URL=https://raw.githubusercontent.com/AGLtools/Insight_tool/master
+set REPO_URL=https://raw.githubusercontent.com/AGLtools/Insight_tool/Deployment
 
 :: ---- 1. Application principale ----
 echo [1/6] Telechargement de app.py...
