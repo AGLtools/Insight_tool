@@ -1,0 +1,22 @@
+# Python portable runtime (too large for git)
+python_portable/
+
+# Virtual environments
+env_agl/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Streamlit cache
+.streamlit/
+
+# OS files
+Thumbs.db
+desktop.ini
+*.lnk
+
+# Temp files
+*.tmp
+~$*
