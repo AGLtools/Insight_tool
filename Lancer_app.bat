@@ -21,5 +21,6 @@ if %errorlevel% equ 0 (
     )
 )
 
-:: Lance Streamlit en mode headless
+:: Lance Streamlit en mode headless et ouvre le navigateur
+start "" http://localhost:8501
 %PY% -m streamlit run "%~dp0app.py" --server.headless true
