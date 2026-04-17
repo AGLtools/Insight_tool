@@ -32,8 +32,10 @@ echo [INFO] Python : %PY%
 
 :: Supprimer le verrou EXTERNALLY-MANAGED si present (python_portable)
 if exist "%~dp0python_portable\Lib\EXTERNALLY-MANAGED" del /f "%~dp0python_portable\Lib\EXTERNALLY-MANAGED"
-for /d %%D in ("%~dp0python_portable\Lib\python*") do (
-    if exist "%%D\EXTERNALLY-MANAGED" del /f "%%D\EXTERNALLY-MANAGED"
+dir /b /ad "%~dp0python_portable\Lib\python*" >nul 2>&1 && (
+    for /f "delims=" %%D in ('dir /b /ad "%~dp0python_portable\Lib\python*" 2^>nul') do (
+        if exist "%~dp0python_portable\Lib\%%D\EXTERNALLY-MANAGED" del /f "%~dp0python_portable\Lib\%%D\EXTERNALLY-MANAGED"
+    )
 )
 
 set REPO_OWNER=AGLtools
