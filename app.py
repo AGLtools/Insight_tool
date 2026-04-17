@@ -171,7 +171,9 @@ for key, val in [
     ('sheet_confirmed', False),
     ('df_propre', None),
     ('client_col', None),
-    ('is_single_month', False)
+    ('is_single_month', False),
+    ('data_type', 'maritime'),
+    ('metric_unit', 'Teus')
 ]:
     if key not in st.session_state:
         st.session_state[key] = val
@@ -196,6 +198,36 @@ OPTIONAL_COLS = {
     'Conditionnement':   ['CODE_CONDIT', 'CONDITIONNEMENT', 'TYPE CONTAINER', 'EQUIPEMENT', 'TAILLE']
 }
 
+# ── Configurations Aérien ──
+EXPECTED_COLS_AERIEN = {
+    'Transitaire':    ['TRANSITAIRE', 'FORWARDER', 'CONSIGNATAIRE'],
+    'NOMBRE_TEU':     ['POIDS MARCHANDISE', 'POIDS', 'WEIGHT', 'POIDS BRUT'],
+    'Mois escale':    ['MOIS ESCALE', 'MOIS', 'MONTH'],
+    'Année escale':   ['ANNÉE ESCALE', 'ANNEE ESCALE', 'ANNEE', 'YEAR'],
+    'I_IMP_E_EXP':    ['SENS', 'I_IMP_E_EXP', 'FLUX', 'TYPE']
+}
+OPTIONAL_COLS_AERIEN = {
+    'Pays de livraison': ['AÉROPORT CHARGEMENT', 'AEROPORT CHARGEMENT', 'AÉROPORT DÉCHARGEMENT', 'AEROPORT DECHARGEMENT'],
+    'Conditionnement':   ['MARCHANDISE', 'COMMODITY', 'DESCRIPTION']
+}
+
+MOIS_NUM_TO_NAME = {1:'Janvier',2:'Février',3:'Mars',4:'Avril',5:'Mai',6:'Juin',
+                    7:'Juillet',8:'Août',9:'Septembre',10:'Octobre',11:'Novembre',12:'Décembre'}
+
+def detect_data_type(columns):
+    upper = [str(c).upper() for c in columns]
+    aerien_markers = ['POIDS MARCHANDISE', 'NUMERO LTA', 'NUMÉRO LTA', 'COMPAGNIE', 'AÉROPORT ESCALE', 'AEROPORT ESCALE']
+    maritime_markers = ['NOMBRE_TEU', 'TEUS', 'NAVIRE', 'PORT ESCALE', 'CONNAISSEMENT']
+    a = sum(1 for m in aerien_markers if any(m in u for u in upper))
+    s = sum(1 for m in maritime_markers if any(m in u for u in upper))
+    return 'aerien' if a > s else 'maritime'
+
+def clean_numeric_col(series):
+    return pd.to_numeric(
+        series.astype(str).str.replace(' ', '', regex=False).str.replace('\xa0', '', regex=False).str.strip(),
+        errors='coerce'
+    ).fillna(0)
+
 @st.cache_data
 def get_sheet_names(f): return pd.ExcelFile(f).sheet_names
 
@@ -205,7 +237,9 @@ def scan_all_sheets(f, sheet_names):
     for s in sheet_names:
         df_tmp = pd.read_excel(f, sheet_name=s, nrows=5)
         up = [str(c).upper() for c in df_tmp.columns]
-        m = sum(1 for al in EXPECTED_COLS.values() if any(a in up for a in al))
+        m_mar = sum(1 for al in EXPECTED_COLS.values() if any(a in up for a in al))
+        m_aer = sum(1 for al in EXPECTED_COLS_AERIEN.values() if any(a in up for a in al))
+        m = max(m_mar, m_aer)
         if m > best_m: best_m, best = m, s
     return best
 
@@ -421,6 +455,7 @@ def editable_dataframe(df, key_prefix, has_total_row=True, use_global_names=Fals
 def format_view_table(df, label_periode, client_col):
     """Prépare les données pour le data_editor avec Ligne Total intégrée et triée en haut."""
     if df.empty: return pd.DataFrame()
+    unit_upper = st.session_state.get('metric_unit', 'Teus').upper()
 
     cols_to_keep = [client_col, 'Total_Marche_2026', 'AGL_Volume_2026', 'PDM_2026']
     if 'Total_Marche_2025' in df.columns:
@@ -441,22 +476,23 @@ def format_view_table(df, label_periode, client_col):
 
     res = pd.concat([pd.DataFrame([total_row]), res], ignore_index=True)
 
-    new_cols = ['CLIENTS', f'MARCHÉ {label_periode.upper()} 2026', 'AGL TEUS 2026', 'PDM 2026']
+    new_cols = ['CLIENTS', f'MARCHÉ {label_periode.upper()} 2026', f'AGL {unit_upper} 2026', 'PDM 2026']
     if 'Total_Marche_2025' in df.columns:
-        new_cols += [f'MARCHÉ {label_periode.upper()} 2025', 'AGL TEUS 2025', 'PDM 2025', 'VARIATION']
+        new_cols += [f'MARCHÉ {label_periode.upper()} 2025', f'AGL {unit_upper} 2025', 'PDM 2025', 'VARIATION']
     res.columns = new_cols
 
     # Assurer les types de colonnes pour compatibilité pyarrow
     res['CLIENTS'] = res['CLIENTS'].astype(str)
     for col in res.columns:
-        if any(k in col for k in ['TEUS', 'VARIATION', 'MARCHÉ', 'PDM']):
+        if any(k in col for k in [unit_upper, 'VARIATION', 'MARCHÉ', 'PDM']):
             res[col] = res[col].fillna(0).astype(int)
     return res
 
 def format_delta_html(val):
-    if val > 0: return f'<span class="val-pos">+ {int(val):,} Teus</span>'
-    if val < 0: return f'<span class="val-neg">- {abs(int(val)):,} Teus</span>'
-    return f'<span class="val-neu">0 Teus</span>'
+    unit = st.session_state.get('metric_unit', 'Teus')
+    if val > 0: return f'<span class="val-pos">+ {int(val):,} {unit}</span>'
+    if val < 0: return f'<span class="val-neg">- {abs(int(val)):,} {unit}</span>'
+    return f'<span class="val-neu">0 {unit}</span>'
 
 
 # ─────────────────────────────────────────────
@@ -527,13 +563,20 @@ if uploaded_file and not st.session_state.validated:
             raw_cols = df_raw.columns.tolist()
             upper_cols = {str(c).upper(): c for c in raw_cols}
 
+        # Détection automatique du type de données
+        data_type = detect_data_type(raw_cols)
+        active_expected = EXPECTED_COLS_AERIEN if data_type == 'aerien' else EXPECTED_COLS
+        active_optional = OPTIONAL_COLS_AERIEN if data_type == 'aerien' else OPTIONAL_COLS
+        type_label = "AÉRIEN" if data_type == 'aerien' else "MARITIME"
+
         final_mapping   = {}
         all_required_ok = True
 
         st.markdown("<hr style='margin:15px 0;'>", unsafe_allow_html=True)
+        st.markdown(f"<div class='log-box log-box-ok'>Mode détecté : <b>{type_label}</b></div>", unsafe_allow_html=True)
         st.markdown("<b style='font-size:0.9rem;'>RÉSULTAT DU SCAN AUTOMATIQUE :</b>", unsafe_allow_html=True)
 
-        for std_col, aliases in EXPECTED_COLS.items():
+        for std_col, aliases in active_expected.items():
             found = next((upper_cols[a] for a in aliases if a in upper_cols), None)
             if found:
                 st.markdown(f"<div class='log-box log-box-ok'>Succès : <b>{std_col}</b> → <code>{found}</code></div>", unsafe_allow_html=True)
@@ -547,7 +590,7 @@ if uploaded_file and not st.session_state.validated:
                     all_required_ok = False
 
         st.markdown("<br><b style='font-size:0.9rem;'>COLONNES OPTIONNELLES :</b>", unsafe_allow_html=True)
-        for std_col, aliases in OPTIONAL_COLS.items():
+        for std_col, aliases in active_optional.items():
             found = next((upper_cols[a] for a in aliases if a in upper_cols), None)
             if found:
                 st.markdown(f"<div class='log-box log-box-ok'>Info : <b>{std_col}</b> → <code>{found}</code></div>", unsafe_allow_html=True)
@@ -569,12 +612,28 @@ if uploaded_file and not st.session_state.validated:
             if st.button("VALIDER ET ACCÉDER AU DASHBOARD", type="primary"):
                 with st.spinner("Préparation du tableau de bord..."):
                     df_clean = df_mapped[df_mapped['I_IMP_E_EXP'] == flux_choisi].copy()
+
+                    # Nettoyage données aériennes (espaces dans nombres, mois numériques)
+                    if data_type == 'aerien':
+                        df_clean['NOMBRE_TEU'] = clean_numeric_col(df_clean['NOMBRE_TEU'])
+                        df_clean['Année escale'] = clean_numeric_col(df_clean['Année escale']).astype(int)
+                        try:
+                            mois_vals = df_clean['Mois escale'].astype(str).str.replace(' ', '', regex=False).str.strip()
+                            mois_numeric = pd.to_numeric(mois_vals, errors='coerce')
+                            if mois_numeric.notna().all():
+                                df_clean['Mois escale'] = mois_numeric.astype(int).map(MOIS_NUM_TO_NAME)
+                        except:
+                            pass
+
                     st.session_state.validated    = True
                     st.session_state.df_propre    = df_clean
-                    st.session_state.client_col   = "Destinataire" if flux_choisi == 'I' else "Chargeur"
+                    st.session_state.data_type    = data_type
+                    st.session_state.metric_unit  = 'Kg' if data_type == 'aerien' else 'Teus'
+                    flux_upper = str(flux_choisi).upper().strip()
+                    st.session_state.client_col   = "Destinataire" if flux_upper.startswith('I') else "Chargeur"
                     annees = df_clean['Année escale'].dropna().unique()
                     st.session_state.is_single_month = len(annees) == 1
-                    time.sleep(0.5)  # Petit délai pour afficher le spinner
+                    time.sleep(0.5)
                 st.rerun()
 
 elif not uploaded_file:
@@ -602,12 +661,14 @@ if st.session_state.validated:
         with r1c1: analyse_type = st.radio("TYPE D'ANALYSE", ["Mois Spécifique", "Cumul (YTD)"])
         with r1c2: mois_cible = st.selectbox("PÉRIODE ANALYSÉE", mois_presents_tries)
         with r1c3:
+            geo_label = "AÉROPORT D'ORIGINE" if st.session_state.get('data_type') == 'aerien' else "PAYS DE DESTINATION"
             if 'Pays de livraison' in df_source.columns:
-                pays_livraison = st.multiselect("PAYS DE DESTINATION", df_source['Pays de livraison'].dropna().unique())
+                pays_livraison = st.multiselect(geo_label, df_source['Pays de livraison'].dropna().unique())
             else: pays_livraison = []
         with r1c4:
+            cond_label = "MARCHANDISE" if st.session_state.get('data_type') == 'aerien' else "CONDITIONNEMENT"
             if 'Conditionnement' in df_source.columns:
-                conditionnements = st.multiselect("CONDITIONNEMENT", df_source['Conditionnement'].dropna().unique())
+                conditionnements = st.multiselect(cond_label, df_source['Conditionnement'].dropna().unique())
             else: conditionnements = []
 
     # Application des filtres globaux
@@ -748,9 +809,10 @@ if st.session_state.validated:
     # ─────────────────────────────────────────────
     with tab_agl:
         # Interface de renommage des colonnes (s'applique à tous les tableaux)
-        cols_for_rename = ['CLIENTS', f'MARCHÉ {label_periode.upper()} 2026', 'AGL TEUS 2026', 'PDM 2026']
+        unit_upper = st.session_state.get('metric_unit', 'Teus').upper()
+        cols_for_rename = ['CLIENTS', f'MARCHÉ {label_periode.upper()} 2026', f'AGL {unit_upper} 2026', 'PDM 2026']
         if not is_single_month:
-            cols_for_rename += [f'MARCHÉ {label_periode.upper()} 2025', 'AGL TEUS 2025', 'PDM 2025', 'VARIATION']
+            cols_for_rename += [f'MARCHÉ {label_periode.upper()} 2025', f'AGL {unit_upper} 2025', 'PDM 2025', 'VARIATION']
         render_column_rename_interface(cols_for_rename)
         
         comp_agl = comparison[(comparison['AGL_Volume_2026'] > 0) | (comparison['AGL_Volume_2025'] > 0)].copy()
@@ -831,13 +893,14 @@ if st.session_state.validated:
             comp = comp.fillna(0)
 
             disp = comp[[client_col, 'Total_Marche_2026', 'AGL_Volume_2026', 'PDM_2026', 'VOL. CONCURRENCE', '1ER CONCURRENT EN 2026', 'TEUS 1ER CONCURRENT', 'PDM CONCURRENT']].copy()
-            disp.columns = ['CLIENTS', f'MARCHÉ {label_periode.upper()} 2026', f'AGL TEUS 2026', 'PDM AGL', 'VOL. CONCURRENCE', '1ER CONCURRENT 2026', 'TEUS CONCURRENT', 'PDM CONCURRENT']
+            unit_upper_conc = st.session_state.get('metric_unit', 'Teus').upper()
+            disp.columns = ['CLIENTS', f'MARCHÉ {label_periode.upper()} 2026', f'AGL {unit_upper_conc} 2026', 'PDM AGL', 'VOL. CONCURRENCE', '1ER CONCURRENT 2026', f'{unit_upper_conc} CONCURRENT', 'PDM CONCURRENT']
             
             # Convertir en string AVANT le remplacement pour éviter les types mixtes
             disp['1ER CONCURRENT 2026'] = disp['1ER CONCURRENT 2026'].astype(str).replace('0', 'Aucun').replace('0.0', 'Aucun')
             
             for col in disp.columns:
-                if 'TEUS' in col or 'VOL' in col or 'MARCHÉ' in col or 'PDM' in col:
+                if any(k in col for k in [unit_upper_conc, 'VOL', 'MARCHÉ', 'PDM']):
                     disp[col] = disp[col].fillna(0).astype(int)
 
             editable_dataframe(disp.sort_values(by=f'MARCHÉ {label_periode.upper()} 2026', ascending=False), "concurrence", has_total_row=False)
