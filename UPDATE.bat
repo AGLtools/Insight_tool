@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 title Mise a jour - AGL Dashboard
 color 0A
 
@@ -33,18 +34,42 @@ set API_URL=https://api.github.com/repos/%REPO_OWNER%/%REPO_NAME%/commits/%BRANC
 echo [*] Verification de mise a jour...
 echo.
 
+set COMMIT_SHA=inconnu
+set COMMIT_MSG=
+set COMMIT_AUTHOR=
+set COMMIT_DATE=
+set SKIP_CHECK=0
+
 %PY% -c "import urllib.request, json; data=json.loads(urllib.request.urlopen('%API_URL%').read()); print('COMMIT_SHA=' + data['sha'][:7]); print('COMMIT_MSG=' + data['commit']['message'].split(chr(10))[0]); print('COMMIT_AUTHOR=' + data['commit']['author']['name']); print('COMMIT_DATE=' + data['commit']['author']['date'][:10])" > "%TEMP%\agl_commit_info.txt" 2>nul
 
 if %errorlevel% neq 0 (
-    echo [ERREUR] Impossible de verifier les mises a jour.
-    echo Verifiez votre connexion internet.
-    pause
-    exit /b 1
+    echo [INFO] Impossible de verifier la version via l'API GitHub.
+    echo [INFO] L'API est peut-etre bloquee par le reseau. Mise a jour forcee...
+    echo.
+    set SKIP_CHECK=1
+    goto :start_download
 )
 
 :: Lire les infos du commit
 for /f "tokens=1,* delims==" %%A in (%TEMP%\agl_commit_info.txt) do set %%A=%%B
 del "%TEMP%\agl_commit_info.txt" >nul 2>&1
+
+:: Comparer avec la version locale
+set VERSION_FILE=%~dp0.current_version
+set LOCAL_SHA=
+if exist "%VERSION_FILE%" (
+    set /p LOCAL_SHA=<"%VERSION_FILE%"
+)
+
+if "!LOCAL_SHA!"=="!COMMIT_SHA!" (
+    echo.
+    echo    Aucune mise a jour disponible.
+    echo    Vous etes deja sur la derniere version [%COMMIT_SHA%].
+    echo    Message : %COMMIT_MSG%
+    echo.
+    pause
+    exit /b 0
+)
 
 echo    Mise a jour trouvee !
 echo    -----------------------------------------------
@@ -54,6 +79,8 @@ echo    Auteur  : %COMMIT_AUTHOR%
 echo    Date    : %COMMIT_DATE%
 echo    -----------------------------------------------
 echo.
+
+:start_download
 
 :: ---- 1. Application principale ----
 echo [1/8] Telechargement de app.py...
@@ -100,9 +127,14 @@ echo [7/8] Installation des dependances...
 echo [8/8] Mise a jour du raccourci...
 call "APPLICATION AGL\Creer_Raccourci_Bureau.bat"
 
+:: Sauvegarder la version installee
+if not "!COMMIT_SHA!"=="inconnu" (
+    echo !COMMIT_SHA!> "%~dp0.current_version"
+)
+
 echo.
 echo =======================================================
-echo     MISE A JOUR TERMINEE !  [%COMMIT_SHA%]
+echo     MISE A JOUR TERMINEE !  [!COMMIT_SHA!]
 echo =======================================================
 echo.
 echo  Version : %COMMIT_MSG%
