@@ -26,6 +26,26 @@ exit /b 1
 :found_python
 echo [INFO] Python : %PY%
 
+:: Verification des packages requis
+%PY% -c "import streamlit" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [INFO] Streamlit non installe. Installation des dependances...
+    if exist "%~dp0requirements.txt" (
+        %PY% -m pip install -r "%~dp0requirements.txt" --no-warn-script-location -q
+        if %errorlevel% neq 0 (
+            echo [ERREUR] L'installation des dependances a echoue.
+            echo Verifiez votre connexion internet.
+            pause
+            exit /b 1
+        )
+        echo [INFO] Dependances installees avec succes.
+    ) else (
+        echo [ERREUR] Fichier requirements.txt introuvable.
+        pause
+        exit /b 1
+    )
+)
+
 :: Lance Streamlit en mode headless et ouvre le navigateur
 start "" http://localhost:8501
 %PY% -m streamlit run "%~dp0app.py" --server.headless true
