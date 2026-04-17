@@ -21,3 +21,6 @@ desktop.ini
 # Temp files
 *.tmp
 ~$*
+
+# Version locale
+.current_version
