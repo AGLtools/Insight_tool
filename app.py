@@ -193,7 +193,7 @@ EXPECTED_COLS = {
 }
 OPTIONAL_COLS = {
     'Pays de livraison': ['PAYS DE LIVRAISON', 'PAYS DE LIVRA', 'PAYS', 'DESTINATION'],
-    'Conditionnement':   ['CONDITIONNEMENT', 'TYPE CONTAINER', 'EQUIPEMENT', 'TAILLE']
+    'Conditionnement':   ['CODE_CONDIT', 'CONDITIONNEMENT', 'TYPE CONTAINER', 'EQUIPEMENT', 'TAILLE']
 }
 
 @st.cache_data
@@ -768,10 +768,20 @@ if st.session_state.validated:
                 if not df_filtered.empty:
                     transitaires = df_filtered['Transitaire'].unique()
 
-                    color_map = {t: "#c8d6e8" for t in transitaires}
-                    for t in color_map:
+                    # Palette de couleurs dynamiques pour les concurrents
+                    CONCURRENT_COLORS = [
+                        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+                        "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+                        "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
+                    ]
+                    color_idx = 0
+                    color_map = {}
+                    for t in transitaires:
                         if 'AFRICA GLOBAL' in str(t).upper():
                             color_map[t] = "#E5A823"
+                        else:
+                            color_map[t] = CONCURRENT_COLORS[color_idx % len(CONCURRENT_COLORS)]
+                            color_idx += 1
 
                     # Utiliser go.Figure au lieu de px.line pour éviter les problèmes de compatibilité
                     fig = go.Figure()
