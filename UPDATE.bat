@@ -6,8 +6,6 @@ echo =======================================================
 echo     MISE A JOUR DU TABLEAU DE BORD AGL
 echo =======================================================
 echo.
-echo Telechargement de la derniere version depuis GitHub...
-echo.
 
 cd /d "%~dp0"
 
@@ -25,10 +23,40 @@ if %errorlevel% equ 0 (
     )
 )
 
-set REPO_URL=https://raw.githubusercontent.com/AGLtools/Insight_tool/Deployment
+set REPO_OWNER=AGLtools
+set REPO_NAME=Insight_tool
+set BRANCH=Deployment
+set REPO_URL=https://raw.githubusercontent.com/%REPO_OWNER%/%REPO_NAME%/%BRANCH%
+set API_URL=https://api.github.com/repos/%REPO_OWNER%/%REPO_NAME%/commits/%BRANCH%
+
+:: ---- Verification de mise a jour ----
+echo [*] Verification de mise a jour...
+echo.
+
+%PY% -c "import urllib.request, json; data=json.loads(urllib.request.urlopen('%API_URL%').read()); print('COMMIT_SHA=' + data['sha'][:7]); print('COMMIT_MSG=' + data['commit']['message'].split(chr(10))[0]); print('COMMIT_AUTHOR=' + data['commit']['author']['name']); print('COMMIT_DATE=' + data['commit']['author']['date'][:10])" > "%TEMP%\agl_commit_info.txt" 2>nul
+
+if %errorlevel% neq 0 (
+    echo [ERREUR] Impossible de verifier les mises a jour.
+    echo Verifiez votre connexion internet.
+    pause
+    exit /b 1
+)
+
+:: Lire les infos du commit
+for /f "tokens=1,* delims==" %%A in (%TEMP%\agl_commit_info.txt) do set %%A=%%B
+del "%TEMP%\agl_commit_info.txt" >nul 2>&1
+
+echo    Mise a jour trouvee !
+echo    -----------------------------------------------
+echo    Commit  : %COMMIT_SHA%
+echo    Message : %COMMIT_MSG%
+echo    Auteur  : %COMMIT_AUTHOR%
+echo    Date    : %COMMIT_DATE%
+echo    -----------------------------------------------
+echo.
 
 :: ---- 1. Application principale ----
-echo [1/6] Telechargement de app.py...
+echo [1/7] Telechargement de app.py...
 %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/app.py', 'app.py')"
 if %errorlevel% neq 0 (
     echo [ERREUR] Impossible de telecharger app.py
@@ -38,11 +66,11 @@ if %errorlevel% neq 0 (
 )
 
 :: ---- 2. Dependances ----
-echo [2/6] Telechargement de requirements.txt...
+echo [2/7] Telechargement de requirements.txt...
 %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/requirements.txt', 'requirements.txt')"
 
 :: ---- 3. Scripts de lancement et installation ----
-echo [3/6] Mise a jour des scripts...
+echo [3/7] Mise a jour des scripts...
 %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/INSTALLATION.bat', 'INSTALLATION.bat')"
 %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/Lancer_app.bat', 'Lancer_app.bat')"
 %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/UPDATE.bat', 'UPDATE.bat')"
@@ -62,16 +90,19 @@ if not exist ".streamlit" mkdir ".streamlit"
 echo [6/7] Installation des dependances...
 %PY% -m pip install -r requirements.txt -q --no-warn-script-location 2>nul
 
-:: ---- 7. Recreer le raccourci bureau (au cas ou le chemin a change) ----
-echo [7/7] Mise a jour du raccourci bureau...
+:: ---- 7. Recreer le raccourci ----
+echo [7/7] Mise a jour du raccourci...
 call "APPLICATION AGL\Creer_Raccourci_Bureau.bat"
 
 echo.
 echo =======================================================
-echo     MISE A JOUR TERMINEE !
+echo     MISE A JOUR TERMINEE !  [%COMMIT_SHA%]
 echo =======================================================
 echo.
+echo  Version : %COMMIT_MSG%
+echo  Date    : %COMMIT_DATE%
+echo.
 echo L'application a ete mise a jour avec succes.
-echo Relancez le raccourci "AGL Dashboard" sur votre bureau.
+echo Relancez le raccourci "AGL Dashboard".
 echo.
 pause
