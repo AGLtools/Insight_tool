@@ -48,17 +48,22 @@ echo [3/6] Mise a jour des scripts...
 %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/UPDATE.bat', 'UPDATE.bat')"
 
 :: ---- 4. Scripts APPLICATION AGL ----
-echo [4/6] Mise a jour des fichiers application...
+echo [4/7] Mise a jour des fichiers application...
 if not exist "APPLICATION AGL" mkdir "APPLICATION AGL"
 %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/APPLICATION%%20AGL/AGL_Analytics.vbs', 'APPLICATION AGL\\AGL_Analytics.vbs')"
 %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/APPLICATION%%20AGL/Creer_Raccourci_Bureau.bat', 'APPLICATION AGL\\Creer_Raccourci_Bureau.bat')"
 
-:: ---- 5. Installation des librairies ----
-echo [5/6] Installation des dependances...
+:: ---- 5. Configuration Streamlit ----
+echo [5/7] Mise a jour de la configuration Streamlit...
+if not exist ".streamlit" mkdir ".streamlit"
+%PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/.streamlit/config.toml', '.streamlit\\config.toml')"
+
+:: ---- 6. Installation des librairies ----
+echo [6/7] Installation des dependances...
 %PY% -m pip install -r requirements.txt -q --no-warn-script-location 2>nul
 
-:: ---- 6. Recreer le raccourci bureau (au cas ou le chemin a change) ----
-echo [6/6] Mise a jour du raccourci bureau...
+:: ---- 7. Recreer le raccourci bureau (au cas ou le chemin a change) ----
+echo [7/7] Mise a jour du raccourci bureau...
 call "APPLICATION AGL\Creer_Raccourci_Bureau.bat"
 
 echo.
