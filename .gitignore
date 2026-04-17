@@ -9,8 +9,9 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Streamlit cache
-.streamlit/
+# Streamlit cache (keep config)
+.streamlit/cache/
+.streamlit/credentials.toml
 
 # OS files
 Thumbs.db
