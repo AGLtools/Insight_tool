@@ -35,6 +35,12 @@ exit /b 1
 :found_python
 echo [INFO] Python : %PY%
 
+:: Supprimer le verrou EXTERNALLY-MANAGED si present (python_portable)
+if exist "%~dp0python_portable\Lib\EXTERNALLY-MANAGED" del /f "%~dp0python_portable\Lib\EXTERNALLY-MANAGED"
+for /d %%D in ("%~dp0python_portable\Lib\python*") do (
+    if exist "%%D\EXTERNALLY-MANAGED" del /f "%%D\EXTERNALLY-MANAGED"
+)
+
 :: 1. Verifier pip
 echo [1/3] Verification de pip...
 %PY% -m pip --version >nul 2>&1
@@ -51,7 +57,7 @@ if %errorlevel% neq 0 (
 
 :: 2. Installer les librairies
 echo [2/3] Installation des composants (cela peut prendre quelques minutes)...
-%PY% -m pip install -r requirements.txt --no-warn-script-location
+%PY% -m pip install -r requirements.txt --no-warn-script-location --break-system-packages
 if %errorlevel% neq 0 (
     echo [ERREUR] L'installation des librairies a echoue.
     echo Verifiez votre connexion internet.

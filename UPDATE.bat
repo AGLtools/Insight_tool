@@ -30,6 +30,12 @@ exit /b 1
 :found_python
 echo [INFO] Python : %PY%
 
+:: Supprimer le verrou EXTERNALLY-MANAGED si present (python_portable)
+if exist "%~dp0python_portable\Lib\EXTERNALLY-MANAGED" del /f "%~dp0python_portable\Lib\EXTERNALLY-MANAGED"
+for /d %%D in ("%~dp0python_portable\Lib\python*") do (
+    if exist "%%D\EXTERNALLY-MANAGED" del /f "%%D\EXTERNALLY-MANAGED"
+)
+
 set REPO_OWNER=AGLtools
 set REPO_NAME=Insight_tool
 set BRANCH=Deployment
@@ -127,7 +133,7 @@ if not exist "Images" mkdir "Images"
 
 :: ---- 7. Installation des librairies ----
 echo [7/8] Installation des dependances...
-%PY% -m pip install -r requirements.txt -q --no-warn-script-location 2>nul
+%PY% -m pip install -r requirements.txt -q --no-warn-script-location --break-system-packages 2>nul
 
 :: ---- 8. Recreer le raccourci ----
 echo [8/8] Mise a jour du raccourci...

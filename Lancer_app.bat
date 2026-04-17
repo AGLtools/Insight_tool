@@ -26,12 +26,18 @@ exit /b 1
 :found_python
 echo [INFO] Python : %PY%
 
+:: Supprimer le verrou EXTERNALLY-MANAGED si present (python_portable)
+if exist "%~dp0python_portable\Lib\EXTERNALLY-MANAGED" del /f "%~dp0python_portable\Lib\EXTERNALLY-MANAGED"
+for /d %%D in ("%~dp0python_portable\Lib\python*") do (
+    if exist "%%D\EXTERNALLY-MANAGED" del /f "%%D\EXTERNALLY-MANAGED"
+)
+
 :: Verification des packages requis
 %PY% -c "import streamlit" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [INFO] Streamlit non installe. Installation des dependances...
     if exist "%~dp0requirements.txt" (
-        %PY% -m pip install -r "%~dp0requirements.txt" --no-warn-script-location -q
+        %PY% -m pip install -r "%~dp0requirements.txt" --no-warn-script-location --break-system-packages -q
         if %errorlevel% neq 0 (
             echo [ERREUR] L'installation des dependances a echoue.
             echo Verifiez votre connexion internet.
