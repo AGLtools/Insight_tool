@@ -82,16 +82,22 @@ if not exist "APPLICATION AGL" mkdir "APPLICATION AGL"
 %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/APPLICATION%%20AGL/Creer_Raccourci_Bureau.bat', 'APPLICATION AGL\\Creer_Raccourci_Bureau.bat')"
 
 :: ---- 5. Configuration Streamlit ----
-echo [5/7] Mise a jour de la configuration Streamlit...
+echo [5/8] Mise a jour de la configuration Streamlit...
 if not exist ".streamlit" mkdir ".streamlit"
 %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/.streamlit/config.toml', '.streamlit\\config.toml')"
 
-:: ---- 6. Installation des librairies ----
-echo [6/7] Installation des dependances...
+:: ---- 6. Images ----
+echo [6/8] Mise a jour des images...
+if not exist "Images" mkdir "Images"
+%PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/Images/Logo%%20_AGL.png', 'Images\\Logo _AGL.png')"
+%PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/Images/Logo_AGL.ico', 'Images\\Logo_AGL.ico')"
+
+:: ---- 7. Installation des librairies ----
+echo [7/8] Installation des dependances...
 %PY% -m pip install -r requirements.txt -q --no-warn-script-location 2>nul
 
-:: ---- 7. Recreer le raccourci ----
-echo [7/7] Mise a jour du raccourci...
+:: ---- 8. Recreer le raccourci ----
+echo [8/8] Mise a jour du raccourci...
 call "APPLICATION AGL\Creer_Raccourci_Bureau.bat"
 
 echo.
