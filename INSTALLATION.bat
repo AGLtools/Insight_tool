@@ -18,19 +18,22 @@ cd /d "%~dp0"
 :: Detecte Python : python_portable d'abord, sinon systeme
 if exist "%~dp0python_portable\python.exe" (
     set PY="%~dp0python_portable\python.exe"
-    echo [INFO] Utilisation de python_portable.
-) else (
-    python --version >nul 2>&1
-    if !errorlevel! equ 0 (
-        set PY=python
-        echo [INFO] Python systeme detecte.
-    ) else (
-        echo [ERREUR] Aucun Python trouve !
-        echo Placez le dossier python_portable a cote de ce script.
-        pause
-        exit /b 1
-    )
+    goto :found_python
 )
+
+python --version >nul 2>&1
+if %errorlevel% equ 0 (
+    set PY=python
+    goto :found_python
+)
+
+echo [ERREUR] Aucun Python trouve !
+echo Placez le dossier python_portable a cote de ce script.
+pause
+exit /b 1
+
+:found_python
+echo [INFO] Python : %PY%
 
 :: 1. Verifier pip
 echo [1/3] Verification de pip...
