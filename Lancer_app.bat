@@ -34,25 +34,25 @@ dir /b /ad "%~dp0python_portable\Lib\python*" >nul 2>&1 && (
     )
 )
 
-:: Verification des packages requis
-%PY% -m streamlit --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [INFO] Streamlit non installe. Installation des dependances...
-    if exist "%~dp0requirements.txt" (
-        %PY% -m pip install -r "%~dp0requirements.txt" --no-warn-script-location --break-system-packages -q
-        if %errorlevel% neq 0 (
-            echo [ERREUR] L'installation des dependances a echoue.
-            echo Verifiez votre connexion internet.
-            pause
-            exit /b 1
-        )
-        echo [INFO] Dependances installees avec succes.
-    ) else (
-        echo [ERREUR] Fichier requirements.txt introuvable.
-        pause
-        exit /b 1
-    )
+:: S'assurer que pip est disponible
+%PY% -m pip --version >nul 2>&1
+if !errorlevel! neq 0 (
+    echo [INFO] pip absent, bootstrap via ensurepip...
+    %PY% -m ensurepip --upgrade >nul 2>&1
 )
+%PY% -m pip install --upgrade pip setuptools wheel --no-warn-script-location --break-system-packages -q >nul 2>&1
+
+:: Verification et installation des packages requis
+echo [INFO] Verification des dependances...
+%PY% -m pip install -r "%~dp0requirements.txt" --no-warn-script-location --break-system-packages
+if !errorlevel! neq 0 (
+    echo [ERREUR] L'installation des dependances a echoue.
+    echo Verifiez votre connexion internet.
+    pause
+    exit /b 1
+)
+echo [INFO] Toutes les dependances sont OK.
+
 
 :: Lance Streamlit en mode headless et ouvre le navigateur
 start "" http://localhost:8501

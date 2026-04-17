@@ -1,10 +1,27 @@
+import sys
+import os
+
+# Garantir l'accès aux packages de python_portable (UV trampoline)
+_portable_site = os.path.join(os.path.dirname(os.path.abspath(__file__)), "python_portable", "Lib", "site-packages")
+if os.path.isdir(_portable_site) and _portable_site not in sys.path:
+    sys.path.insert(0, _portable_site)
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import os
 import time
 import json
+import io
+import importlib
+
+def check_pptx_available():
+    try:
+        importlib.import_module('pptx')
+        return True
+    except Exception as e:
+        print(f"[PPTX CHECK] Import failed: {type(e).__name__}: {e}")
+        return False
 
 # Fichier cache pour les noms de colonnes personnalisés
 COLUMN_NAMES_CACHE_FILE = os.path.join(os.path.dirname(__file__), '.column_names_cache.json')
@@ -646,6 +663,248 @@ elif not uploaded_file:
 
 
 # ─────────────────────────────────────────────
+#  5b. GÉNÉRATION RAPPORT PPTX
+# ─────────────────────────────────────────────
+def generate_pptx_report(df_source, comparison, res_2026, df_cible, df_all, client_col, label_periode, is_single_month, metric_unit):
+    from pptx import Presentation
+    from pptx.util import Inches, Pt, Emu
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+
+    prs = Presentation()
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+
+    AGL_NAVY = RGBColor(0, 31, 77)
+    AGL_GOLD = RGBColor(229, 168, 35)
+    WHITE = RGBColor(255, 255, 255)
+    LIGHT_GRAY = RGBColor(240, 243, 248)
+    unit_upper = metric_unit.upper()
+
+    def add_title_slide(title, subtitle):
+        slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank
+        bg = slide.background.fill
+        bg.solid()
+        bg.fore_color.rgb = AGL_NAVY
+        # Title
+        txBox = slide.shapes.add_textbox(Inches(1), Inches(2), Inches(11), Inches(1.5))
+        tf = txBox.text_frame
+        p = tf.paragraphs[0]
+        p.text = title
+        p.font.size = Pt(36)
+        p.font.bold = True
+        p.font.color.rgb = WHITE
+        p.alignment = PP_ALIGN.CENTER
+        # Subtitle
+        p2 = tf.add_paragraph()
+        p2.text = subtitle
+        p2.font.size = Pt(18)
+        p2.font.color.rgb = AGL_GOLD
+        p2.alignment = PP_ALIGN.CENTER
+        # Gold line
+        slide.shapes.add_shape(1, Inches(4), Inches(4), Inches(5), Pt(3)).fill.solid()
+        slide.shapes[-1].fill.fore_color.rgb = AGL_GOLD
+        slide.shapes[-1].line.fill.background()
+        return slide
+
+    def add_table_slide(title, df, max_rows=20):
+        if df is None or df.empty:
+            return
+        df_show = df.head(max_rows).copy()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        # Title bar
+        title_shape = slide.shapes.add_shape(1, Inches(0), Inches(0), prs.slide_width, Inches(0.7))
+        title_shape.fill.solid()
+        title_shape.fill.fore_color.rgb = AGL_NAVY
+        title_shape.line.fill.background()
+        txBox = slide.shapes.add_textbox(Inches(0.5), Inches(0.08), Inches(12), Inches(0.55))
+        tf = txBox.text_frame
+        p = tf.paragraphs[0]
+        p.text = title
+        p.font.size = Pt(16)
+        p.font.bold = True
+        p.font.color.rgb = AGL_GOLD
+
+        rows, cols = len(df_show) + 1, len(df_show.columns)
+        tbl_width = min(Inches(12.5), Inches(cols * 1.6))
+        tbl = slide.shapes.add_table(rows, cols, Inches(0.4), Inches(0.9), tbl_width, Inches(min(5.8, 0.35 * rows))).table
+
+        # Header
+        for j, col_name in enumerate(df_show.columns):
+            cell = tbl.cell(0, j)
+            cell.text = str(col_name)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = AGL_NAVY
+            for paragraph in cell.text_frame.paragraphs:
+                paragraph.font.size = Pt(9)
+                paragraph.font.bold = True
+                paragraph.font.color.rgb = WHITE
+                paragraph.alignment = PP_ALIGN.CENTER
+            cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+
+        # Data
+        for i in range(len(df_show)):
+            for j in range(cols):
+                cell = tbl.cell(i + 1, j)
+                val = df_show.iloc[i, j]
+                cell.text = str(int(val)) if isinstance(val, (int, float)) and not pd.isna(val) else str(val)
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = WHITE if i % 2 == 0 else LIGHT_GRAY
+                for paragraph in cell.text_frame.paragraphs:
+                    paragraph.font.size = Pt(8)
+                    paragraph.font.color.rgb = AGL_NAVY
+                    paragraph.alignment = PP_ALIGN.CENTER if j > 0 else PP_ALIGN.LEFT
+                cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+        return slide
+
+    def add_chart_image_slide(title, fig):
+        try:
+            img_bytes = fig.to_image(format="png", width=1200, height=500, scale=2)
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            # Title bar
+            title_shape = slide.shapes.add_shape(1, Inches(0), Inches(0), prs.slide_width, Inches(0.7))
+            title_shape.fill.solid()
+            title_shape.fill.fore_color.rgb = AGL_NAVY
+            title_shape.line.fill.background()
+            txBox = slide.shapes.add_textbox(Inches(0.5), Inches(0.08), Inches(12), Inches(0.55))
+            tf = txBox.text_frame
+            p = tf.paragraphs[0]
+            p.text = title
+            p.font.size = Pt(16)
+            p.font.bold = True
+            p.font.color.rgb = AGL_GOLD
+            # Image
+            img_stream = io.BytesIO(img_bytes)
+            slide.shapes.add_picture(img_stream, Inches(0.6), Inches(1), Inches(12), Inches(5.8))
+            return slide
+        except:
+            return None
+
+    # ── SLIDE 1: TITRE ──
+    data_type_label = "Aérien" if st.session_state.get('data_type') == 'aerien' else "Maritime"
+    add_title_slide(
+        "AGL | Rapport Stratégique",
+        f"{data_type_label} — {label_periode} 2026 — Part de Marché & Concurrence"
+    )
+
+    # ── SLIDE 2: KPIs RÉSUMÉ ──
+    slide_kpi = prs.slides.add_slide(prs.slide_layouts[6])
+    title_shape = slide_kpi.shapes.add_shape(1, Inches(0), Inches(0), prs.slide_width, Inches(0.7))
+    title_shape.fill.solid()
+    title_shape.fill.fore_color.rgb = AGL_NAVY
+    title_shape.line.fill.background()
+    txBox = slide_kpi.shapes.add_textbox(Inches(0.5), Inches(0.08), Inches(12), Inches(0.55))
+    p = txBox.text_frame.paragraphs[0]
+    p.text = "INDICATEURS CLÉS"
+    p.font.size = Pt(16)
+    p.font.bold = True
+    p.font.color.rgb = AGL_GOLD
+
+    total_marche = comparison['Total_Marche_2026'].sum()
+    total_agl = comparison['AGL_Volume_2026'].sum()
+    pdm_global = (total_agl / total_marche * 100) if total_marche > 0 else 0
+    nb_clients_agl = len(comparison[comparison['AGL_Volume_2026'] > 0])
+
+    kpis = [
+        (f"Marché Total", f"{int(total_marche):,} {metric_unit}"),
+        (f"Volume AGL", f"{int(total_agl):,} {metric_unit}"),
+        (f"PDM Globale", f"{pdm_global:.1f} %"),
+        (f"Clients AGL", f"{nb_clients_agl}"),
+    ]
+    for idx, (kpi_title, kpi_val) in enumerate(kpis):
+        left = Inches(0.5 + idx * 3.1)
+        shape = slide_kpi.shapes.add_shape(1, left, Inches(1.5), Inches(2.8), Inches(2))
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = WHITE
+        shape.line.color.rgb = RGBColor(226, 232, 240)
+        tf = shape.text_frame
+        tf.word_wrap = True
+        p1 = tf.paragraphs[0]
+        p1.text = kpi_title
+        p1.font.size = Pt(12)
+        p1.font.color.rgb = AGL_NAVY
+        p1.alignment = PP_ALIGN.CENTER
+        p2 = tf.add_paragraph()
+        p2.text = kpi_val
+        p2.font.size = Pt(28)
+        p2.font.bold = True
+        p2.font.color.rgb = AGL_GOLD
+        p2.alignment = PP_ALIGN.CENTER
+
+    # ── SLIDE 3: FOCUS AGL (tableau) ──
+    comp_agl = comparison[(comparison['AGL_Volume_2026'] > 0) | (comparison['AGL_Volume_2025'] > 0)].copy()
+    if not comp_agl.empty:
+        if not is_single_month:
+            comp_agl['Variation_Volume'] = comp_agl['AGL_Volume_2026'] - comp_agl['AGL_Volume_2025']
+        tbl_agl = format_view_table(comp_agl, label_periode, client_col)
+        add_table_slide(f"FOCUS AGL — {label_periode.upper()} 2026", tbl_agl)
+
+    # ── SLIDE 4: TOP PDM CHART ──
+    if not comp_agl.empty:
+        top20 = comp_agl.nlargest(15, 'AGL_Volume_2026')
+        fig_bar = go.Figure()
+        fig_bar.add_trace(go.Bar(
+            x=top20[client_col], y=top20['AGL_Volume_2026'],
+            marker_color='#E5A823', name=f'AGL {unit_upper} 2026'
+        ))
+        if not is_single_month:
+            fig_bar.add_trace(go.Bar(
+                x=top20[client_col], y=top20['AGL_Volume_2025'],
+                marker_color='#001f4d', name=f'AGL {unit_upper} 2025', opacity=0.6
+            ))
+        fig_bar.update_layout(
+            title=f"TOP 15 CLIENTS AGL — {label_periode.upper()}",
+            font=dict(family="DM Sans", color="#1a2840"),
+            paper_bgcolor="white", plot_bgcolor="white",
+            xaxis=dict(tickangle=-45), barmode='group',
+            margin=dict(t=50, b=120, l=60, r=30)
+        )
+        add_chart_image_slide(f"TOP 15 CLIENTS AGL — {label_periode.upper()}", fig_bar)
+
+    # ── SLIDE 5: CONCURRENCE ──
+    df_cible_2026 = df_cible[df_cible['Année escale'] == 2026]
+    if not df_cible_2026.empty:
+        df_comp = df_cible_2026.groupby([client_col, 'Transitaire'])['NOMBRE_TEU'].sum().reset_index()
+        df_others = df_comp[~df_comp['Transitaire'].astype(str).str.contains('AFRICA GLOBAL LOGISTICS', case=False, na=False)]
+        idx_max = df_others.groupby(client_col)['NOMBRE_TEU'].idxmax()
+        top_comp = df_others.loc[idx_max.dropna()].rename(columns={'Transitaire': '1ER CONCURRENT', 'NOMBRE_TEU': f'{unit_upper} CONCURRENT'})
+        comp_tbl = pd.merge(res_2026, top_comp[[client_col, '1ER CONCURRENT', f'{unit_upper} CONCURRENT']], on=client_col, how='left')
+        comp_tbl['VOL. CONCURRENCE'] = comp_tbl['Total_Marche_2026'] - comp_tbl['AGL_Volume_2026']
+        comp_tbl = comp_tbl.fillna(0)
+        disp_conc = comp_tbl[[client_col, 'Total_Marche_2026', 'AGL_Volume_2026', 'PDM_2026', 'VOL. CONCURRENCE', '1ER CONCURRENT', f'{unit_upper} CONCURRENT']].copy()
+        disp_conc.columns = ['CLIENTS', f'MARCHÉ 2026', f'AGL {unit_upper}', 'PDM %', 'CONCURRENCE', '1ER CONCURRENT', f'{unit_upper} CONC.']
+        disp_conc = disp_conc.sort_values(f'MARCHÉ 2026', ascending=False).head(20)
+        for c in disp_conc.columns:
+            if c not in ['CLIENTS', '1ER CONCURRENT']:
+                disp_conc[c] = disp_conc[c].fillna(0).astype(int)
+        disp_conc['1ER CONCURRENT'] = disp_conc['1ER CONCURRENT'].astype(str).replace('0', 'Aucun').replace('0.0', 'Aucun')
+        add_table_slide(f"ANALYSE CONCURRENTIELLE — {label_periode.upper()} 2026", disp_conc)
+
+    # ── SLIDE 6: PDM PIE CHART ──
+    if not df_cible_2026.empty:
+        df_trans = df_cible_2026.groupby('Transitaire')['NOMBRE_TEU'].sum().reset_index()
+        df_trans = df_trans.sort_values('NOMBRE_TEU', ascending=False).head(10)
+        colors = ['#E5A823' if 'AFRICA GLOBAL' in str(t).upper() else '#001f4d' for t in df_trans['Transitaire']]
+        fig_pie = go.Figure(go.Pie(
+            labels=df_trans['Transitaire'], values=df_trans['NOMBRE_TEU'],
+            marker=dict(colors=colors), textinfo='label+percent', hole=0.4
+        ))
+        fig_pie.update_layout(
+            title="RÉPARTITION PDM — TOP 10 TRANSITAIRES",
+            font=dict(family="DM Sans", color="#1a2840"),
+            paper_bgcolor="white", margin=dict(t=50, b=30, l=30, r=30),
+            showlegend=False
+        )
+        add_chart_image_slide("RÉPARTITION PDM — TOP 10 TRANSITAIRES", fig_pie)
+
+    # ── EXPORT ──
+    output = io.BytesIO()
+    prs.save(output)
+    output.seek(0)
+    return output.getvalue()
+
+
+# ─────────────────────────────────────────────
 #  6. DASHBOARD PRINCIPAL
 # ─────────────────────────────────────────────
 if st.session_state.validated:
@@ -696,6 +955,35 @@ if st.session_state.validated:
         comparison['PDM_2025'] = 0
 
     st.markdown("<br>", unsafe_allow_html=True)
+
+    # Bouton export PPTX
+    col_export, col_spacer = st.columns([1, 5])
+    with col_export:
+        if st.button("EXPORTER RAPPORT PPTX", type="secondary"):
+            with st.spinner("Génération du rapport PowerPoint..."):
+                try:
+                    pptx_data = generate_pptx_report(
+                        df_source, comparison, res_2026, df_cible, df_all,
+                        client_col, label_periode, is_single_month,
+                        st.session_state.get('metric_unit', 'Teus')
+                    )
+                    st.session_state['pptx_data'] = pptx_data
+                except Exception as e:
+                    import sys
+                    st.error(f"Erreur génération PPTX : {e}")
+                    st.code(f"sys.executable = {sys.executable}\nsys.path = {sys.path}", language="text")
+    if st.session_state.get('pptx_data'):
+        col_dl, _ = st.columns([1, 5])
+        with col_dl:
+            data_type_label = "Aerien" if st.session_state.get('data_type') == 'aerien' else "Maritime"
+            st.download_button(
+                label="TÉLÉCHARGER LE RAPPORT",
+                data=st.session_state['pptx_data'],
+                file_name=f"AGL_Rapport_{data_type_label}_{label_periode.replace(' ', '_')}_2026.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                type="primary"
+            )
+
     tab_agl, tab_evo, tab_conc, tab_raw = st.tabs([
         "FOCUS AGL", "ÉVOLUTION PDM", "CONCURRENCE", "DONNÉES BRUTES"
     ])
