@@ -1698,9 +1698,346 @@ if st.session_state.validated:
                 type="primary"
             )
 
-    tab_agl, tab_evo, tab_conc, tab_raw = st.tabs([
-        "FOCUS AGL", "ÉVOLUTION PDM", "CONCURRENCE", "DONNÉES BRUTES"
+    tab_globe, tab_agl, tab_evo, tab_conc, tab_raw = st.tabs([
+        "GLOBAL OVERVIEW", "FOCUS AGL", "ÉVOLUTION PDM", "CONCURRENCE", "DONNÉES BRUTES"
     ])
+
+    # ─────────────────────────────────────────────
+    #  ONGLET GLOBAL OVERVIEW — Globe interactif
+    # ─────────────────────────────────────────────
+    COUNTRY_COORDS = {
+        "COTE D'IVOIRE": (7.54, -5.55), "COTE D IVOIRE": (7.54, -5.55), "IVORY COAST": (7.54, -5.55),
+        "FRANCE": (46.60, 2.21), "BELGIQUE": (50.50, 4.47), "BELGIUM": (50.50, 4.47),
+        "PAYS-BAS": (52.13, 5.29), "NETHERLANDS": (52.13, 5.29), "ALLEMAGNE": (51.17, 10.45),
+        "GERMANY": (51.17, 10.45), "ESPAGNE": (40.46, -3.75), "SPAIN": (40.46, -3.75),
+        "ITALIE": (41.87, 12.57), "ITALY": (41.87, 12.57), "PORTUGAL": (39.40, -8.22),
+        "ROYAUME-UNI": (55.38, -3.44), "UNITED KINGDOM": (55.38, -3.44), "ANGLETERRE": (55.38, -3.44),
+        "SUISSE": (46.82, 8.23), "TURQUIE": (38.96, 35.24), "TURKEY": (38.96, 35.24),
+        "GRECE": (39.07, 21.82), "GREECE": (39.07, 21.82),
+        "USA": (37.09, -95.71), "ETATS-UNIS": (37.09, -95.71), "UNITED STATES": (37.09, -95.71),
+        "CANADA": (56.13, -106.35), "BRESIL": (-14.24, -51.93), "BRAZIL": (-14.24, -51.93),
+        "ARGENTINE": (-38.42, -63.62), "COLOMBIE": (4.57, -74.30), "MEXIQUE": (23.63, -102.55),
+        "CHILI": (-35.68, -71.54), "PEROU": (-9.19, -75.01),
+        "CHINE": (35.86, 104.20), "CHINA": (35.86, 104.20), "INDE": (20.59, 78.96), "INDIA": (20.59, 78.96),
+        "JAPON": (36.20, 138.25), "JAPAN": (36.20, 138.25), "COREE DU SUD": (35.91, 127.77),
+        "SOUTH KOREA": (35.91, 127.77), "COREE": (35.91, 127.77),
+        "VIETNAM": (14.06, 108.28), "THAILANDE": (15.87, 100.99), "THAILAND": (15.87, 100.99),
+        "MALAISIE": (4.21, 101.98), "MALAYSIA": (4.21, 101.98), "INDONESIE": (-0.79, 113.92),
+        "SINGAPOUR": (1.35, 103.82), "SINGAPORE": (1.35, 103.82), "PHILIPPINES": (12.88, 121.77),
+        "PAKISTAN": (30.38, 69.35), "BANGLADESH": (23.68, 90.36), "SRI LANKA": (7.87, 80.77),
+        "TAIWAN": (23.70, 120.96), "MYANMAR": (21.91, 95.96),
+        "EMIRATS ARABES UNIS": (23.42, 53.85), "UAE": (23.42, 53.85), "ARABIE SAOUDITE": (23.89, 45.08),
+        "SAUDI ARABIA": (23.89, 45.08), "QATAR": (25.35, 51.18), "OMAN": (21.47, 55.98),
+        "KOWEIT": (29.31, 47.48), "BAHREIN": (26.07, 50.56), "JORDANIE": (30.59, 36.24),
+        "LIBAN": (33.85, 35.86), "ISRAEL": (31.05, 34.85), "IRAK": (33.22, 43.68),
+        "IRAN": (32.43, 53.69), "YEMEN": (15.55, 48.52), "YEMEN DU SUD": (15.55, 48.52),
+        "DJIBOUTI": (11.83, 42.59), "SYRIE": (34.80, 38.99),
+        "SENEGAL": (14.50, -14.45), "MALI": (17.57, -4.00), "BURKINA FASO": (12.24, -1.56),
+        "GUINEE": (9.95, -9.70), "GUINEE-BISSAU": (11.80, -15.18), "GUINEE EQUATORIALE": (1.65, 10.27),
+        "GAMBIE": (13.44, -15.31), "SIERRA LEONE": (8.46, -11.78),
+        "LIBERIA": (6.43, -9.43), "GHANA": (7.95, -1.02), "TOGO": (8.62, 1.21),
+        "BENIN": (9.31, 2.32), "NIGER": (17.61, 8.08), "NIGERIA": (9.08, 8.68),
+        "CAMEROUN": (7.37, 12.35), "CAMEROON": (7.37, 12.35), "GABON": (-0.80, 11.61),
+        "CONGO": (-4.26, 15.28), "CONGO (BRAZZA)": (-4.26, 15.28), "CONGO (BRAZZAVILLE)": (-4.26, 15.28),
+        "REPUBLIQUE DEMOCRATIQUE DU CONGO": (-4.04, 21.76), "RDC": (-4.04, 21.76), "CONGO (KINSHASA)": (-4.04, 21.76),
+        "ANGOLA": (-11.20, 17.87), "MOZAMBIQUE": (-18.67, 35.53),
+        "TANZANIE": (-6.37, 34.89), "KENYA": (-0.02, 37.91), "OUGANDA": (1.37, 32.29),
+        "ETHIOPIE": (9.15, 40.49), "ERYTHREE": (15.18, 39.78), "SOMALIE": (5.15, 46.20),
+        "MADAGASCAR": (-18.77, 46.87), "MAURICE": (-20.35, 57.55), "REUNION": (-21.12, 55.54),
+        "COMORES": (-11.65, 43.33), "SEYCHELLES": (-4.68, 55.49),
+        "AFRIQUE DU SUD": (-30.56, 22.94), "SOUTH AFRICA": (-30.56, 22.94), "NAMIBIE": (-22.96, 18.49),
+        "ZIMBABWE": (-19.02, 29.15), "ZAMBIE": (-13.13, 27.85), "MALAWI": (-13.25, 34.30),
+        "BOTSWANA": (-22.33, 24.68), "RWANDA": (-1.94, 29.87), "BURUNDI": (-3.37, 29.92),
+        "TCHAD": (15.45, 18.73), "CENTRAFRIQUE": (6.61, 20.94), "SOUDAN": (12.86, 30.22),
+        "EGYPTE": (26.82, 30.80), "EGYPT": (26.82, 30.80), "LIBYE": (26.34, 17.23),
+        "TUNISIE": (33.89, 9.54), "ALGERIE": (28.03, 1.66), "MAROC": (31.79, -7.09), "MOROCCO": (31.79, -7.09),
+        "MAURITANIE": (21.01, -10.94), "CAP-VERT": (16.00, -24.01),
+        "AUSTRALIE": (-25.27, 133.78), "AUSTRALIA": (-25.27, 133.78), "NOUVELLE-ZELANDE": (-40.90, 174.89),
+        "RUSSIE": (61.52, 105.32), "UKRAINE": (48.38, 31.17), "POLOGNE": (51.92, 19.15),
+        "ROUMANIE": (45.94, 24.97), "HONGRIE": (47.16, 19.50), "AUTRICHE": (47.52, 14.55),
+        "REPUBLIQUE TCHEQUE": (49.82, 15.47), "BULGARIE": (42.73, 25.49),
+        "CROATIE": (45.10, 15.20), "SERBIE": (44.02, 21.01), "SUEDE": (60.13, 18.64),
+        "NORVEGE": (60.47, 8.47), "DANEMARK": (56.26, 9.50), "FINLANDE": (61.92, 25.75),
+        "IRLANDE": (53.14, -7.69), "CUBA": (21.52, -77.78), "HAITI": (18.97, -72.29),
+        "JAMAIQUE": (18.11, -77.30), "TRINITE-ET-TOBAGO": (10.69, -61.22),
+    }
+
+    def _normalize_country(name):
+        """Normalize country name for lookup."""
+        if pd.isna(name): return None
+        s = str(name).upper().strip()
+        s = s.replace("'", "'").replace("'", "'").replace("\u2019", "'")
+        return s
+
+    def _get_coords(country_name):
+        norm = _normalize_country(country_name)
+        if norm is None: return None
+        if norm in COUNTRY_COORDS: return COUNTRY_COORDS[norm]
+        # Fuzzy fallback: check if any key is contained in the name
+        for k, v in COUNTRY_COORDS.items():
+            if k in norm or norm in k:
+                return v
+        return None
+
+    with tab_globe:
+        # Determine origin and destination columns
+        is_export_data = (client_col == 'Chargeur')
+        has_prise_charge = 'Pays de prise en charge' in df_cible.columns
+        has_livraison = 'Pays de livraison' in df_cible.columns
+        if is_export_data:
+            origin_col = 'Pays de prise en charge' if has_prise_charge else 'Pays de livraison'
+            dest_col = 'Pays de livraison' if has_prise_charge else None
+        else:
+            # Import: destination = Pays de livraison, origin = Pays de prise en charge si dispo
+            origin_col = 'Pays de livraison'
+            dest_col = 'Pays de prise en charge' if has_prise_charge else None
+
+        has_geo = origin_col in df_cible.columns
+        if not has_geo:
+            st.info("Aucune donnée géographique disponible dans ce dataset.")
+        else:
+            unit_label = st.session_state.get('metric_unit', 'Teus')
+            unit_upper_g = unit_label.upper()
+            df_globe = df_cible.copy()
+
+            # ── KPI HERO CARDS ──
+            total_vol = df_globe['NOMBRE_TEU'].sum()
+            nb_countries = df_globe[origin_col].nunique()
+            nb_clients = df_globe[client_col].nunique() if client_col in df_globe.columns else 0
+            nb_transitaires = df_globe['Transitaire'].nunique()
+            agl_vol = df_globe[df_globe['Transitaire'].astype(str).str.contains('AFRICA GLOBAL', case=False, na=False)]['NOMBRE_TEU'].sum()
+            pdm_global = round(agl_vol / total_vol * 100) if total_vol > 0 else 0
+
+            kpi_html = f"""
+            <style>
+            .globe-kpi-row {{display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap;}}
+            .globe-kpi {{flex:1; min-width:140px; background:linear-gradient(135deg,#1a1a2e,#16213e); border-radius:12px; padding:18px 16px; text-align:center; border:1px solid #0f3460; box-shadow:0 4px 15px rgba(0,0,0,0.3);}}
+            .globe-kpi-val {{font-size:1.8rem; font-weight:800; background:linear-gradient(90deg,#E5A823,#f0c040); -webkit-background-clip:text; -webkit-text-fill-color:transparent;}}
+            .globe-kpi-label {{font-size:0.72rem; color:#8892b0; text-transform:uppercase; letter-spacing:1.5px; margin-top:4px;}}
+            .globe-kpi.agl .globe-kpi-val {{background:linear-gradient(90deg,#00c851,#00e676); -webkit-background-clip:text; -webkit-text-fill-color:transparent;}}
+            .globe-kpi.pdm .globe-kpi-val {{background:linear-gradient(90deg,#2196F3,#42a5f5); -webkit-background-clip:text; -webkit-text-fill-color:transparent;}}
+            </style>
+            <div class="globe-kpi-row">
+                <div class="globe-kpi"><div class="globe-kpi-val">{total_vol:,.0f}</div><div class="globe-kpi-label">Volume Total {unit_upper_g}</div></div>
+                <div class="globe-kpi agl"><div class="globe-kpi-val">{agl_vol:,.0f}</div><div class="globe-kpi-label">Volume AGL</div></div>
+                <div class="globe-kpi pdm"><div class="globe-kpi-val">{pdm_global}%</div><div class="globe-kpi-label">PDM Globale</div></div>
+                <div class="globe-kpi"><div class="globe-kpi-val">{nb_countries}</div><div class="globe-kpi-label">Pays</div></div>
+                <div class="globe-kpi"><div class="globe-kpi-val">{nb_clients}</div><div class="globe-kpi-label">Clients</div></div>
+                <div class="globe-kpi"><div class="globe-kpi-val">{nb_transitaires}</div><div class="globe-kpi-label">Transitaires</div></div>
+            </div>
+            """
+            st.markdown(kpi_html, unsafe_allow_html=True)
+
+            # ── Build flows data ──
+            # Aggregate by country
+            country_agg = df_globe.groupby(origin_col).agg(
+                Volume=('NOMBRE_TEU', 'sum'),
+                Nb_Clients=(client_col, 'nunique') if client_col in df_globe.columns else ('NOMBRE_TEU', 'count'),
+                Nb_Transitaires=('Transitaire', 'nunique'),
+            ).reset_index()
+            country_agg.rename(columns={origin_col: 'Pays'}, inplace=True)
+
+            # AGL volume per country
+            agl_by_country = df_globe[df_globe['Transitaire'].astype(str).str.contains('AFRICA GLOBAL', case=False, na=False)].groupby(origin_col)['NOMBRE_TEU'].sum().reset_index()
+            agl_by_country.columns = ['Pays', 'AGL_Volume']
+            country_agg = pd.merge(country_agg, agl_by_country, on='Pays', how='left').fillna(0)
+            country_agg['PDM'] = (country_agg['AGL_Volume'] / country_agg['Volume'] * 100).round(1)
+            country_agg['lat'] = country_agg['Pays'].apply(lambda x: (_get_coords(x) or (0, 0))[0])
+            country_agg['lon'] = country_agg['Pays'].apply(lambda x: (_get_coords(x) or (0, 0))[1])
+            country_agg = country_agg[(country_agg['lat'] != 0) | (country_agg['lon'] != 0)]
+
+            if country_agg.empty:
+                st.warning("Impossible de géolocaliser les pays du dataset.")
+            else:
+                # ── GLOBE FIGURE ──
+                fig = go.Figure()
+
+                # If we have dual geo columns (export: origin -> destination), draw flow arcs
+                ci_coords = COUNTRY_COORDS.get("COTE D'IVOIRE", (7.54, -5.55))
+                if dest_col and dest_col in df_globe.columns:
+                    # Dual geo: draw flow arcs between origin and destination countries
+                    if is_export_data:
+                        # Export: CI → destination countries
+                        flow_agg = df_globe.groupby(dest_col)['NOMBRE_TEU'].sum().reset_index()
+                        flow_agg.columns = ['Dest', 'Volume']
+                    else:
+                        # Import: origin countries → CI (using Pays de prise en charge)
+                        flow_agg = df_globe.groupby(dest_col)['NOMBRE_TEU'].sum().reset_index()
+                        flow_agg.columns = ['Dest', 'Volume']
+                    flow_agg = flow_agg.sort_values('Volume', ascending=False)
+                    fmax = flow_agg['Volume'].max() if not flow_agg.empty else 1
+                    for _, frow in flow_agg.iterrows():
+                        coords = _get_coords(frow['Dest'])
+                        if coords is None: continue
+                        if is_export_data:
+                            lat_pair = [ci_coords[0], coords[0]]
+                            lon_pair = [ci_coords[1], coords[1]]
+                            arrow = f"CI → {frow['Dest']}"
+                        else:
+                            lat_pair = [coords[0], ci_coords[0]]
+                            lon_pair = [coords[1], ci_coords[1]]
+                            arrow = f"{frow['Dest']} → CI"
+                        fig.add_trace(go.Scattergeo(
+                            lat=lat_pair, lon=lon_pair,
+                            mode='lines',
+                            line=dict(width=max(0.5, min(4, frow['Volume'] / fmax * 4)),
+                                      color='rgba(229,168,35,0.4)'),
+                            hoverinfo='text',
+                            text=f"{arrow}<br>{int(frow['Volume']):,} {unit_upper_g}",
+                            showlegend=False,
+                        ))
+                else:
+                    # Single geo column: draw lines from/to CI using country_agg
+                    for _, crow in country_agg.iterrows():
+                        if is_export_data:
+                            lat_pair = [ci_coords[0], crow['lat']]
+                            lon_pair = [ci_coords[1], crow['lon']]
+                            arrow = f"CI → {crow['Pays']}"
+                        else:
+                            lat_pair = [crow['lat'], ci_coords[0]]
+                            lon_pair = [crow['lon'], ci_coords[1]]
+                            arrow = f"{crow['Pays']} → CI"
+                        fig.add_trace(go.Scattergeo(
+                            lat=lat_pair, lon=lon_pair,
+                            mode='lines',
+                            line=dict(width=max(0.5, min(4, crow['Volume'] / country_agg['Volume'].max() * 4)),
+                                      color='rgba(229,168,35,0.35)'),
+                            hoverinfo='text',
+                            text=f"{arrow}<br>{int(crow['Volume']):,} {unit_upper_g}",
+                            showlegend=False,
+                        ))
+
+                # Bubble markers for countries
+                max_vol = country_agg['Volume'].max() if not country_agg.empty else 1
+                country_agg['bubble_size'] = (country_agg['Volume'] / max_vol * 35).clip(lower=6)
+                country_agg['color'] = country_agg['PDM'].apply(
+                    lambda p: '#00c851' if p >= 50 else ('#E5A823' if p >= 20 else '#ff5252'))
+
+                fig.add_trace(go.Scattergeo(
+                    lat=country_agg['lat'].tolist(),
+                    lon=country_agg['lon'].tolist(),
+                    mode='markers+text',
+                    marker=dict(
+                        size=country_agg['bubble_size'].tolist(),
+                        color=country_agg['color'].tolist(),
+                        opacity=0.85,
+                        line=dict(width=1, color='white'),
+                        sizemode='diameter',
+                    ),
+                    text=country_agg['Pays'].apply(lambda x: str(x)[:15]).tolist(),
+                    textposition='top center',
+                    textfont=dict(size=8, color='white'),
+                    hovertemplate=(
+                        '<b>%{customdata[0]}</b><br>'
+                        f'Volume: %{{customdata[1]:,.0f}} {unit_upper_g}<br>'
+                        f'AGL: %{{customdata[2]:,.0f}} {unit_upper_g}<br>'
+                        'PDM: %{customdata[3]:.1f}%<br>'
+                        'Clients: %{customdata[4]}<br>'
+                        'Transitaires: %{customdata[5]}'
+                        '<extra></extra>'
+                    ),
+                    customdata=country_agg[['Pays', 'Volume', 'AGL_Volume', 'PDM', 'Nb_Clients', 'Nb_Transitaires']].values.tolist(),
+                    showlegend=False,
+                ))
+
+                # CI marker (larger, distinct)
+                fig.add_trace(go.Scattergeo(
+                    lat=[ci_coords[0]], lon=[ci_coords[1]],
+                    mode='markers',
+                    marker=dict(size=18, color='#E5A823', symbol='star', line=dict(width=2, color='white')),
+                    hovertemplate=f"<b>CÔTE D'IVOIRE</b><br>Hub AGL<extra></extra>",
+                    showlegend=False,
+                ))
+
+                flux_label = "EXPORT" if is_export_data else "IMPORT"
+                fig.update_layout(
+                    geo=dict(
+                        projection_type='orthographic',
+                        showland=True, landcolor='#1a1a2e',
+                        showocean=True, oceancolor='#0a0a1a',
+                        showcountries=True, countrycolor='#2a2a4a',
+                        showlakes=True, lakecolor='#0a0a1a',
+                        showcoastlines=True, coastlinecolor='#2a2a4a',
+                        bgcolor='#0a0a1a',
+                        projection_rotation=dict(lon=-5, lat=10),
+                    ),
+                    paper_bgcolor='#0a0a1a',
+                    plot_bgcolor='#0a0a1a',
+                    margin=dict(l=0, r=0, t=40, b=0),
+                    height=600,
+                    title=dict(
+                        text=f"<b>FLUX {flux_label} — {label_periode.upper()} 2026</b>",
+                        font=dict(color='#E5A823', size=16),
+                        x=0.5, xanchor='center',
+                    ),
+                    dragmode='orbit',
+                )
+                st.plotly_chart(fig, use_container_width=True, key="globe_chart")
+
+                # ── TOP COUNTRIES TABLE ──
+                st.markdown("<hr style='border-color:#1a1a2e;margin:10px 0'>", unsafe_allow_html=True)
+                col_tbl, col_chart = st.columns([3, 2], gap="large")
+
+                with col_tbl:
+                    st.markdown(f"<b style='color:#E5A823;'>TOP PAYS PAR VOLUME ({unit_upper_g})</b>", unsafe_allow_html=True)
+                    top_countries = country_agg.sort_values('Volume', ascending=False).head(20)
+                    disp_countries = top_countries[['Pays', 'Volume', 'AGL_Volume', 'PDM', 'Nb_Clients', 'Nb_Transitaires']].copy()
+                    disp_countries.columns = ['PAYS', f'VOLUME {unit_upper_g}', f'AGL {unit_upper_g}', 'PDM %', 'CLIENTS', 'TRANSITAIRES']
+                    for c in disp_countries.columns:
+                        if c not in ('PAYS',):
+                            disp_countries[c] = disp_countries[c].fillna(0).astype(int)
+                    disp_countries = disp_countries.reset_index(drop=True)
+                    disp_countries.index = disp_countries.index + 1
+                    st.dataframe(disp_countries, use_container_width=True, height=400)
+
+                with col_chart:
+                    st.markdown(f"<b style='color:#E5A823;'>RÉPARTITION PAR PAYS</b>", unsafe_allow_html=True)
+                    top10 = country_agg.sort_values('Volume', ascending=False).head(10)
+                    others_vol = country_agg.sort_values('Volume', ascending=False).iloc[10:]['Volume'].sum()
+                    if others_vol > 0:
+                        top10 = pd.concat([top10, pd.DataFrame([{'Pays': 'Autres', 'Volume': others_vol}])], ignore_index=True)
+                    fig_pie = go.Figure(data=[go.Pie(
+                        labels=top10['Pays'].tolist(),
+                        values=top10['Volume'].tolist(),
+                        hole=0.45,
+                        marker=dict(colors=['#E5A823','#f0c040','#00c851','#2196F3','#ff5252',
+                                            '#9c27b0','#ff9800','#00bcd4','#8bc34a','#e91e63','#607d8b']),
+                        textinfo='label+percent',
+                        textfont=dict(size=10),
+                        outsidetextfont=dict(size=9),
+                        insidetextorientation='radial',
+                        hovertemplate='<b>%{label}</b><br>%{value:,.0f} ' + unit_upper_g + '<br>%{percent}<extra></extra>',
+                    )])
+                    fig_pie.update_layout(
+                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                        margin=dict(l=10, r=10, t=10, b=10), height=400,
+                        showlegend=False,
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True, key="pie_chart")
+
+                # ── TOP TRANSITAIRES BAR CHART ──
+                st.markdown("<hr style='border-color:#1a1a2e;margin:10px 0'>", unsafe_allow_html=True)
+                st.markdown(f"<b style='color:#E5A823;'>TOP 15 TRANSITAIRES — VOLUMES {unit_upper_g}</b>", unsafe_allow_html=True)
+                top_trans = df_globe.groupby('Transitaire')['NOMBRE_TEU'].sum().reset_index()
+                top_trans = top_trans.sort_values('NOMBRE_TEU', ascending=True).tail(15)
+                top_trans['is_agl'] = top_trans['Transitaire'].astype(str).str.contains('AFRICA GLOBAL', case=False, na=False)
+                fig_bar = go.Figure(data=[go.Bar(
+                    y=top_trans['Transitaire'].apply(lambda x: str(x)[:35]).tolist(),
+                    x=top_trans['NOMBRE_TEU'].tolist(),
+                    orientation='h',
+                    marker=dict(
+                        color=top_trans['is_agl'].apply(lambda x: '#E5A823' if x else '#2196F3').tolist(),
+                        line=dict(width=0),
+                    ),
+                    hovertemplate='<b>%{y}</b><br>%{x:,.0f} ' + unit_upper_g + '<extra></extra>',
+                )])
+                fig_bar.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    xaxis=dict(gridcolor='#1a1a2e', tickfont=dict(color='#8892b0')),
+                    yaxis=dict(tickfont=dict(color='#8892b0', size=9)),
+                    margin=dict(l=10, r=20, t=10, b=30), height=420,
+                )
+                st.plotly_chart(fig_bar, use_container_width=True, key="bar_transitaires")
 
     # ─────────────────────────────────────────────
     #  FONCTION DE RENDU DES VUES AVEC ÉDITEUR (DATA_EDITOR)
@@ -1776,23 +2113,23 @@ if st.session_state.validated:
             col_g, col_d = st.columns(2, gap="large")
             with col_g:
                 st.markdown(f'<div class="agl-section-title">{ICON_UP} PDM ≥ {seuil_pdm}% · CROISSANCE & STABLES</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_100_crois, label_per, client_col), f"{prefix_key}_100c", use_global_names=True, label_periode=label_per)
+                editable_dataframe(format_view_table(df_100_crois, label_per, client_col), f"{prefix_key}_100c", use_global_names=False)
                 
                 st.markdown(f'<div class="agl-section-title" style="margin-top:16px">{ICON_UP} NOUVEAUX CLIENTS ACTIFS</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_new, label_per, client_col), f"{prefix_key}_new", use_global_names=True, label_periode=label_per)
+                editable_dataframe(format_view_table(df_new, label_per, client_col), f"{prefix_key}_new", use_global_names=False)
                 
                 st.markdown(f'<div class="agl-section-title" style="margin-top:16px">{ICON_UP} AUTRES CLIENTS EN HAUSSE & STABLES</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_aut_crois, label_per, client_col), f"{prefix_key}_autc", use_global_names=True, label_periode=label_per)
+                editable_dataframe(format_view_table(df_aut_crois, label_per, client_col), f"{prefix_key}_autc", use_global_names=False)
 
             with col_d:
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn">{ICON_DOWN} PDM ≥ {seuil_pdm}% · DÉCROISSANCE</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_100_baisse, label_per, client_col), f"{prefix_key}_100b", use_global_names=True, label_periode=label_per)
+                editable_dataframe(format_view_table(df_100_baisse, label_per, client_col), f"{prefix_key}_100b", use_global_names=False)
                 
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn" style="margin-top:16px">{ICON_DOWN} CLIENTS PERDUS (INACTIFS)</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_lost, label_per, client_col), f"{prefix_key}_lost", use_global_names=True, label_periode=label_per)
+                editable_dataframe(format_view_table(df_lost, label_per, client_col), f"{prefix_key}_lost", use_global_names=False)
                 
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn" style="margin-top:16px">{ICON_DOWN} AUTRES CLIENTS EN BAISSE</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_aut_baisse, label_per, client_col), f"{prefix_key}_autb", use_global_names=True, label_periode=label_per)
+                editable_dataframe(format_view_table(df_aut_baisse, label_per, client_col), f"{prefix_key}_autb", use_global_names=False)
 
         else: 
             df_100 = comp_df[comp_df['PDM_2026'] >= seuil_pdm].sort_values('AGL_Volume_2026', ascending=False)
@@ -1801,10 +2138,10 @@ if st.session_state.validated:
             col_g, col_d = st.columns(2, gap="large")
             with col_g:
                 st.markdown(f'<div class="agl-section-title">{ICON_UP} CLIENTS PDM ≥ {seuil_pdm}%</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_100, label_per, client_col), f"{prefix_key}_100", use_global_names=True, label_periode=label_per)
+                editable_dataframe(format_view_table(df_100, label_per, client_col), f"{prefix_key}_100", use_global_names=False)
             with col_d:
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn">{ICON_DOWN} AUTRES CLIENTS (< {seuil_pdm}%)</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_aut, label_per, client_col), f"{prefix_key}_aut", use_global_names=True, label_periode=label_per)
+                editable_dataframe(format_view_table(df_aut, label_per, client_col), f"{prefix_key}_aut", use_global_names=False)
 
     # ─────────────────────────────────────────────
     #  EXÉCUTION DES ONGLETS
@@ -1896,7 +2233,9 @@ if st.session_state.validated:
 
             disp = comp[[client_col, 'Total_Marche_2026', 'AGL_Volume_2026', 'PDM_2026', 'VOL. CONCURRENCE', '1ER CONCURRENT EN 2026', 'TEUS 1ER CONCURRENT', 'PDM CONCURRENT']].copy()
             unit_upper_conc = st.session_state.get('metric_unit', 'Teus').upper()
-            disp.columns = ['CLIENTS', f'MARCHÉ {label_periode.upper()} 2026', f'AGL {unit_upper_conc} 2026', 'PDM AGL', 'VOL. CONCURRENCE', '1ER CONCURRENT 2026', f'{unit_upper_conc} CONCURRENT', 'PDM CONCURRENT']
+            col_marche = f'MARCHÉ {label_periode.upper()} 2026'
+            col_agl = f'AGL {unit_upper_conc} 2026'
+            disp.columns = ['CLIENTS', col_marche, col_agl, 'PDM AGL', 'VOL. CONCURRENCE', '1ER CONCURRENT 2026', f'{unit_upper_conc} CONCURRENT', 'PDM CONCURRENT']
             
             # Convertir en string AVANT le remplacement pour éviter les types mixtes
             disp['1ER CONCURRENT 2026'] = disp['1ER CONCURRENT 2026'].astype(str).replace('0', 'Aucun').replace('0.0', 'Aucun')
@@ -1905,7 +2244,24 @@ if st.session_state.validated:
                 if any(k in col for k in [unit_upper_conc, 'VOL', 'MARCHÉ', 'PDM']):
                     disp[col] = disp[col].fillna(0).astype(int)
 
-            editable_dataframe(disp.sort_values(by=f'MARCHÉ {label_periode.upper()} 2026', ascending=False), "concurrence", has_total_row=False)
+            # ─────────────────────────────────────────────
+            # FILTRE CHECKBOX — AGL NON NUL
+            # ─────────────────────────────────────────────
+            st.markdown("<br>", unsafe_allow_html=True)
+            show_only_agl = st.checkbox(
+                f"Afficher seulement où AGL {unit_upper_conc} > 0 (concurrence AGL vs autres transitaires)",
+                value=True,
+                key="checkbox_agl_nonull"
+            )
+            
+            # Appliquer le filtre
+            disp_filtered = disp[(disp[col_agl] > 0) & (disp['PDM AGL'] < 100)] if show_only_agl else disp
+            
+            # Tri descendant merged : d'abord MARCHÉ, puis AGL TEUS
+            disp_filtered = disp_filtered.sort_values(by=[col_marche, col_agl], ascending=False)
+            
+            st.markdown("<hr style='margin: 10px 0 20px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
+            editable_dataframe(disp_filtered, "concurrence", has_total_row=False)
         else:
             st.info("Aucune donnée d'analyse concurrentielle pour cette période.")
 
