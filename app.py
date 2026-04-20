@@ -194,6 +194,41 @@ def reset_validation():
 # ─────────────────────────────────────────────
 #  3. CONFIGURATION COLONNES & CACHE
 # ─────────────────────────────────────────────
+
+# Clients exclus de la concurrence et commentaires (Etat, mines, etc.)
+EXCLUDED_CLIENTS = {
+    'AFRIK MINE SARL CI', 'AMINE SERVICES PLUS CI', 'BONIKRO GOLD MINE CI',
+    'DOUMBIA MOHAMED LAMINE CI', 'KAMAGATE INZATOU YASMINE CI',
+    'MINES ET EXPLOITATION EN AFRIQUE DE L\'OUEST (MINEX WA )',
+    'SAMINE CORPORATION CI', 'STE DES MINES DE LAFIGUE SA CI',
+    'STE DES MINES D\'ITY', 'STE GLE D\'EXPLOIT.DE MINES&MIN',
+    'TASSA MELAMINE SARL CI', 'TONGON GOLD MINE CI',
+    'TONGONAISE DES MINES CI (TOMI)', 'WAMINES CI',
+    'DEKEL OIL CI', 'OLA ENERGY (EX LIBYA OIL CI)',
+    'ABIDJAN INTERNATIONAL MINISTRY', 'MINIST.FEM.FAMIL.PROTEC.ENF.CI',
+    'MINISTERE DE ENSEIGNEMENT TECH',
+    'MINISTERE DE LA COHESION NATIONALE ET DA LA SOLIDARITE CI',
+    'MINISTERE DE LA DEFENSE DE CI', 'MINISTERE DE LA SECURITE CI',
+    'MINISTERE DE L\'AGRICULTURE CI',
+    'MINISTERE DE L\'ENSEIGNEMENT SECONDAIRE TECHNIQUE ET DE LA FORMATION',
+    'MINISTERE DE L\'HYDRAULIQUE CI', 'MINISTERE DE L\'INTERIEUR',
+    'MINISTERE DE SANTE PUBLIQUE CI', 'MINISTERE DES AFFAIR.ETRANG CI',
+    'MINISTERE DES RESSOUR.ANI.HALI', 'MINISTERE DES TRANSPORT CI',
+    'MINISTERE PRODUCTION ANIMAL', 'MINISTERE TOURISME LOISIRS CI',
+    'ENI CI', 'PERSEUS MINING CI',
+}
+EXCLUDED_CLIENTS_UPPER = {c.upper() for c in EXCLUDED_CLIENTS}
+
+def _is_excluded_client(name):
+    """Check if a client name matches the exclusion list (substring match on MINE/MINISTERE + exact)."""
+    up = str(name).upper().strip()
+    if up in EXCLUDED_CLIENTS_UPPER:
+        return True
+    # Substring patterns for broader matching
+    for kw in ['MINISTERE', 'MINISTRY', 'MINE ', 'MINES ', 'MINING', 'GOLD MINE']:
+        if kw in up:
+            return True
+    return False
 EXPECTED_COLS = {
     'Transitaire':    ['TRANSITAIRE', 'FORWARDER', 'CONSIGNATAIRE'],
     'NOMBRE_TEU':     ['NOMBRE_TEU', 'VOLUME', 'TEUS', 'TEU', 'QTE'],
@@ -588,14 +623,11 @@ with st.sidebar:
     st.markdown('<div style="font-weight:600;font-size:0.75rem;color:#E5A823;letter-spacing:0.1em;margin-bottom:10px;">SOURCE DE DONNÉES</div>', unsafe_allow_html=True)
     uploaded_file = st.file_uploader("Fichier Excel (.xlsx)", type=['xlsx'], label_visibility="collapsed", on_change=reset_validation)
     
-    # ── FICHIERS RAPPORT PPTX (multi-sections) ──
+    # ── FICHIERS RAPPORT PPTX (détection automatique) ──
     st.markdown('<div style="height:1px;background:rgba(229,168,35,.25);margin:20px 0;"></div>', unsafe_allow_html=True)
     st.markdown('<div style="font-weight:600;font-size:0.75rem;color:#E5A823;letter-spacing:0.1em;margin-bottom:10px;">DONNÉES RAPPORT PPTX</div>', unsafe_allow_html=True)
-    st.caption("Chargez vos fichiers pour le rapport multi-sections. Ces fichiers n'affectent pas le dashboard.")
-    report_file_imp_mar = st.file_uploader("Import Maritime", type=['xlsx'], key="rpt_imp_mar")
-    report_file_exp_mar = st.file_uploader("Export Maritime", type=['xlsx'], key="rpt_exp_mar")
-    report_file_imp_aer = st.file_uploader("Import Aérien", type=['xlsx'], key="rpt_imp_aer")
-    report_file_exp_aer = st.file_uploader("Export Aérien", type=['xlsx'], key="rpt_exp_aer")
+    st.caption("Chargez un ou plusieurs fichiers Excel. Le type (Import/Export, Maritime/Aérien) et la période seront détectés automatiquement.")
+    report_files_uploaded = st.file_uploader("Fichiers rapport", type=['xlsx'], key="rpt_multi", accept_multiple_files=True, label_visibility="collapsed")
 
     st.markdown('<div style="height:1px;background:rgba(229,168,35,.25);margin:20px 0;"></div>', unsafe_allow_html=True)
     st.markdown(f'<div style="font-weight:600;font-size:0.75rem;color:#E5A823;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:8px;">{ICON_SETTINGS} OPTIONS SYSTÈME</div>', unsafe_allow_html=True)
@@ -757,7 +789,7 @@ elif not uploaded_file:
 #  16  = Fonds de Commerce Import Aérien
 
 TEMPLATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             'ALERTE CLIENTS - AGL CI JANVIER 2026.pptx')
+                             'DATA', 'ALERTE CLIENTS - AGL CI JANVIER 2026.pptx')
 
 # Section map: name -> (separator_idx, synthese_idx, top20_idx, detail_idx, fonds_idx)
 SECTION_TEMPLATE_MAP = {
@@ -1229,7 +1261,12 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
 
     template_path = TEMPLATE_FILE
     if not os.path.isfile(template_path):
-        raise FileNotFoundError(f"Template introuvable : {template_path}")
+        available = [f for f in os.listdir(os.path.dirname(template_path)) if f.endswith('.pptx')]
+        raise FileNotFoundError(
+            f"Template PPTX introuvable : {template_path}\n"
+            f"Fichiers .pptx disponibles : {available if available else 'Aucun'}\n"
+            f"Placez le fichier template dans : {os.path.dirname(template_path)}"
+        )
 
     # Just load the template and modify slides in-place
     out_prs = Presentation(template_path)
@@ -1326,6 +1363,8 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
 
         merged = pd.merge(comp, tc[[client_col, '1ER_CONC', 'TEUS_CONC']], on=client_col, how='left').fillna(0)
         merged['VOL_CONC'] = merged['Total_Marche_2026'] - merged['AGL_Volume_2026']
+        # Exclure clients Etat/mines de la concurrence PPTX
+        merged = merged[~merged[client_col].apply(_is_excluded_client)]
         if not is_single and 'AGL_Volume_2025' in merged.columns:
             merged['Variation'] = merged['AGL_Volume_2026'] - merged['AGL_Volume_2025']
             # TOP 20 "en baisse": declining AGL clients sorted by competition volume
@@ -1383,7 +1422,8 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         comp_c['Var_Marche'] = comp_c['Total_Marche_2026'] - comp_c['Total_Marche_2025']
         unit = metric_unit
 
-        # Focus on clients where AGL declined
+        # Focus on clients where AGL declined (exclure Etat/mines)
+        comp_c = comp_c[~comp_c[client_col].apply(_is_excluded_client)]
         declining = comp_c[comp_c['Variation'] < 0].copy()
         total_loss = int(declining['Variation'].sum())  # negative
 
@@ -1430,6 +1470,124 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
                 r.text = line
                 r.font.size = Pt(9)
 
+    def update_analyse_group(slide, comp, mu, is_single):
+        """Update the 3 analysis summary boxes (100% PDM, Actifs/Inactifs, Hausse/Baisse)."""
+        if is_single:
+            return
+        comp_a = comp.copy()
+        comp_a['Variation'] = comp_a['AGL_Volume_2026'] - comp_a['AGL_Volume_2025']
+
+        # Classification
+        pdm100 = comp_a[comp_a['PDM_2026'] >= 100]
+        remaining = comp_a[comp_a['PDM_2026'] < 100]
+
+        pdm100_up = pdm100[pdm100['Variation'] > 0]
+        pdm100_down = pdm100[pdm100['Variation'] < 0]
+        n_pdm100 = len(pdm100)
+        total_pdm100 = int(pdm100['Variation'].sum())
+
+        actifs = remaining[(remaining['AGL_Volume_2025'] == 0) & (remaining['AGL_Volume_2026'] > 0)]
+        inactifs = remaining[(remaining['AGL_Volume_2026'] == 0) & (remaining['AGL_Volume_2025'] > 0)]
+        n_actifs, vol_actifs = len(actifs), int(actifs['Variation'].sum())
+        n_inactifs, vol_inactifs = len(inactifs), int(inactifs['Variation'].sum())
+        total_ai = vol_actifs + vol_inactifs
+
+        others = remaining[(remaining['AGL_Volume_2025'] > 0) & (remaining['AGL_Volume_2026'] > 0)]
+        others_up = others[others['Variation'] > 0]
+        others_down = others[others['Variation'] < 0]
+        total_autres = int(others['Variation'].sum())
+
+        def _fmt(val):
+            v = int(val)
+            s = f"{abs(v):,}".replace(",", " ")
+            return f"+ {s}" if v >= 0 else f"- {s}"
+
+        def _get_texts_recursive(group):
+            texts = []
+            for sh in group.shapes:
+                if sh.shape_type == 6:
+                    texts.extend(_get_texts_recursive(sh))
+                elif hasattr(sh, 'text') and sh.text.strip():
+                    texts.append(sh.text)
+            return texts
+
+        def _set_shape_multiline(shape, text):
+            tf = shape.text_frame
+            saved_size, saved_bold, saved_color = None, None, None
+            if tf.paragraphs and tf.paragraphs[0].runs:
+                f = tf.paragraphs[0].runs[0].font
+                saved_size = f.size
+                saved_bold = f.bold
+                try:
+                    saved_color = f.color.rgb
+                except:
+                    pass
+            tf.clear()
+            lines = text.split('\n')
+            for i, line in enumerate(lines):
+                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                r = p.add_run()
+                r.text = line
+                if saved_size:
+                    r.font.size = saved_size
+                if saved_bold is not None:
+                    r.font.bold = saved_bold
+                if saved_color:
+                    r.font.color.rgb = saved_color
+
+        # Find analysis group (contains "100 %" text)
+        analyse_group = None
+        for sh in slide.shapes:
+            if sh.shape_type == 6:
+                texts = _get_texts_recursive(sh)
+                if any('100 %' in t for t in texts):
+                    analyse_group = sh
+                    break
+
+        if not analyse_group:
+            return
+
+        # Process each sub-group
+        for sub in analyse_group.shapes:
+            if sub.shape_type != 6:
+                continue
+            sub_texts = _get_texts_recursive(sub)
+            combined = ' '.join(sub_texts)
+            rects = []
+            for sh in sub.shapes:
+                if sh.shape_type == 1 and hasattr(sh, 'text') and sh.text.strip():
+                    rects.append(sh)
+            if len(rects) < 2:
+                continue
+            rects.sort(key=lambda s: len(s.text))
+            summary_sh, detail_sh = rects[0], rects[1]
+
+            if '100 %' in combined:
+                _set_shape_multiline(summary_sh,
+                    f"{n_pdm100} Clients à 100 % de PDM  {_fmt(total_pdm100)} {mu}")
+                _set_shape_multiline(detail_sh,
+                    f"{len(pdm100_up):02d} Clients qui ont une croissance  {_fmt(int(pdm100_up['Variation'].sum()))} {mu}\n"
+                    f"{len(pdm100_down):02d} Clients qui ont une baisse         {_fmt(int(pdm100_down['Variation'].sum()))} {mu}")
+            elif 'actifs' in combined.lower() and 'inactifs' in combined.lower():
+                _set_shape_multiline(summary_sh,
+                    f"Clients Actifs et Inactifs  {_fmt(total_ai)} {mu}")
+                _set_shape_multiline(detail_sh,
+                    f"{n_actifs:02d} Clients Actifs en 2026        {_fmt(vol_actifs)} {mu}\n"
+                    f"{n_inactifs:02d} Clients Inactifs en 2026      {_fmt(vol_inactifs)} {mu}")
+            else:
+                _set_shape_multiline(summary_sh,
+                    f"Autres Clients en Hausse et en Baisse  {_fmt(total_autres)} {mu}")
+                _set_shape_multiline(detail_sh,
+                    f"{len(others_up)} Clients qui ont une Hausse    {_fmt(int(others_up['Variation'].sum()))} {mu}\n"
+                    f"{len(others_down)} Clients qui ont une baisse      {_fmt(int(others_down['Variation'].sum()))} {mu}")
+
+        # Update POUR RAPPEL text
+        for sh in slide.shapes:
+            if hasattr(sh, 'text') and 'travaillé en' in sh.text.lower():
+                _set_shape_multiline(sh,
+                    "Actifs   = travaillé en 2026 et pas en 2025.\nInactifs = pas travaillé en 2026 et travaillé en 2025")
+                break
+
     # ── Main: update template slides with section data ──
     slides = list(out_prs.slides)
 
@@ -1457,6 +1615,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         df_cible = sd['df_cible']
         ccol = sd['client_col']
         mu = sd['metric_unit']
+        sec_single = sd.get('is_single', is_single_month)
 
         # Synthese slide
         if synth_idx < len(slides):
@@ -1472,9 +1631,11 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
                     new_title = new_title.replace(m, label_periode.upper().split()[-1] if ' ' in label_periode else label_periode.upper())
                 set_textbox_text(title_sh, new_title)
             # Fill KPI table
-            fill_synthese_table(synth_slide, comp, mu, label_periode, is_single_month)
+            fill_synthese_table(synth_slide, comp, mu, label_periode, sec_single)
             # Update comments
-            update_comments_text(synth_slide, comp, mu, ccol, is_single_month)
+            update_comments_text(synth_slide, comp, mu, ccol, sec_single)
+            # Update analysis group (100% PDM, Actifs/Inactifs, Hausse/Baisse)
+            update_analyse_group(synth_slide, comp, mu, sec_single)
 
         # Top 20 slide
         if top20_idx < len(slides):
@@ -1488,7 +1649,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
                     old_text = old_text.replace(m, label_periode.upper().split()[-1] if ' ' in label_periode else label_periode.upper())
                 set_textbox_text(title_sh, old_text)
             # Fill data table
-            fill_top20_table(top20_slide, comp, df_cible, ccol, mu, is_single_month)
+            fill_top20_table(top20_slide, comp, df_cible, ccol, mu, sec_single)
 
     output = io.BytesIO()
     out_prs.save(output)
@@ -1588,67 +1749,165 @@ if st.session_state.validated:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ── Bouton export PPTX (multi-sections ou dashboard seul) ──
-    report_files = {
-        'Import Maritime':  st.session_state.get('rpt_imp_mar'),
-        'Export Maritime':  st.session_state.get('rpt_exp_mar'),
-        'Import Aérien':   st.session_state.get('rpt_imp_aer'),
-        'Export Aérien':    st.session_state.get('rpt_exp_aer'),
-    }
-    has_report_files = any(f is not None for f in report_files.values())
+    report_files_list = st.session_state.get('rpt_multi', [])
+    has_report_files = len(report_files_list) > 0
 
     col_export, col_info = st.columns([1, 5])
     with col_export:
         btn_label = "GÉNÉRER RAPPORT COMPLET" if has_report_files else "EXPORTER RAPPORT PPTX"
         if st.button(btn_label, type="secondary"):
-            with st.spinner("Génération du rapport PowerPoint..."):
-                try:
-                    sections = {}
+            log_container = st.container()
+            logs = []
+            def _log(msg, level="info"):
+                logs.append((level, msg))
+                with log_container:
+                    prefix = {"info": "[INFO]", "ok": "[OK]", "warn": "[WARN]", "err": "[ERROR]"}.get(level, "[INFO]")
+                    color = {"info": "#8892b0", "ok": "#00c851", "warn": "#E5A823", "err": "#ff5252"}.get(level, "#8892b0")
+                    st.markdown(f"<div style='font-size:0.82rem;color:{color};padding:2px 0;'>{prefix} {msg}</div>", unsafe_allow_html=True)
 
-                    if has_report_files:
-                        # Multi-section mode: process each uploaded report file
-                        file_configs = [
-                            ('Import Maritime',  report_files['Import Maritime'],  'I', 'maritime'),
-                            ('Export Maritime',   report_files['Export Maritime'],  'E', 'maritime'),
-                            ('Import Aérien',    report_files['Import Aérien'],   'I', 'aerien'),
-                            ('Export Aérien',     report_files['Export Aérien'],    'E', 'aerien'),
-                        ]
-                        for sec_name, f, flux, dtype in file_configs:
-                            if f is None:
+            try:
+                sections = {}
+
+                if has_report_files:
+                    _log(f"Demarrage - {len(report_files_list)} fichier(s) detecte(s)")
+
+                    mois_dict_rpt = {'Janvier':1,'Février':2,'Mars':3,'Avril':4,'Mai':5,'Juin':6,
+                                     'Juillet':7,'Août':8,'Septembre':9,'Octobre':10,'Novembre':11,'Décembre':12}
+
+                    for file_obj in report_files_list:
+                        fname = file_obj.name
+                        _log(f"Analyse de <b>{fname}</b>...")
+
+                        # Auto-detect data type + best sheet by scanning ALL sheets with BOTH types
+                        try:
+                            xls = pd.ExcelFile(file_obj)
+                            sheet_names = xls.sheet_names
+                        except Exception as e:
+                            _log(f"Erreur lecture {fname} : {e}", "err")
+                            continue
+
+                        best_sheet, best_score, dtype = sheet_names[0], -1, 'maritime'
+                        for s in sheet_names:
+                            df_tmp = pd.read_excel(file_obj, sheet_name=s, nrows=5)
+                            up = [str(c).upper() for c in df_tmp.columns]
+                            score_mar = sum(1 for al in EXPECTED_COLS.values() if any(a in up for a in al))
+                            score_aer = sum(1 for al in EXPECTED_COLS_AERIEN.values() if any(a in up for a in al))
+                            if score_mar >= score_aer and score_mar > best_score:
+                                best_score, best_sheet, dtype = score_mar, s, 'maritime'
+                            if score_aer > score_mar and score_aer > best_score:
+                                best_score, best_sheet, dtype = score_aer, s, 'aerien'
+                            # Tiebreaker: use detect_data_type for better accuracy
+                            if score_mar == score_aer and score_mar > best_score:
+                                dt = detect_data_type(df_tmp.columns.tolist())
+                                best_score, best_sheet, dtype = score_mar, s, dt
+
+                        _log(f"Type detecte : <b>{dtype.upper()}</b>", "ok")
+
+                        expected = EXPECTED_COLS_AERIEN if dtype == 'aerien' else EXPECTED_COLS
+                        optional = OPTIONAL_COLS_AERIEN if dtype == 'aerien' else OPTIONAL_COLS
+
+                        df_raw = pd.read_excel(file_obj, sheet_name=best_sheet)
+                        upper_cols = {str(c).upper(): c for c in df_raw.columns}
+                        _log(f"Feuille selectionnee : <b>{best_sheet}</b> ({len(df_raw)} lignes)")
+
+                        # Map columns
+                        mapping = {}
+                        for std_col, aliases in {**expected, **optional}.items():
+                            found = next((upper_cols[a] for a in aliases if a in upper_cols), None)
+                            if found:
+                                mapping[std_col] = found
+
+                        missing = [k for k in expected if k not in mapping]
+                        if missing:
+                            _log(f"Colonnes manquantes : {', '.join(missing)} - fichier ignore", "warn")
+                            continue
+
+                        inverse = {v: k for k, v in mapping.items()}
+                        df = df_raw.rename(columns=inverse)
+
+                        if dtype == 'aerien':
+                            df['NOMBRE_TEU'] = clean_numeric_col(df['NOMBRE_TEU'])
+                            df['Année escale'] = clean_numeric_col(df['Année escale']).astype(int)
+                            try:
+                                mois_vals = df['Mois escale'].astype(str).str.replace(' ', '', regex=False).str.strip()
+                                mois_numeric = pd.to_numeric(mois_vals, errors='coerce')
+                                if mois_numeric.notna().all():
+                                    df['Mois escale'] = mois_numeric.astype(int).map(MOIS_NUM_TO_NAME)
+                            except:
+                                pass
+
+                        # Detect flux(es) in file
+                        flux_vals = df['I_IMP_E_EXP'].dropna().astype(str).str.upper().str.strip().unique()
+                        flux_vals = [v for v in flux_vals if v and v != 'NAN' and len(v) > 0]
+                        flux_detected = []
+                        if any(str(v).startswith('I') for v in flux_vals):
+                            flux_detected.append('I')
+                        if any(str(v).startswith('E') for v in flux_vals):
+                            flux_detected.append('E')
+                        _log(f"Flux detecte(s) : <b>{', '.join(['Import' if f == 'I' else 'Export' for f in flux_detected])}</b>", "ok")
+
+                        # Auto-detect period from data
+                        annees = sorted(df['Année escale'].dropna().unique())
+                        mois_present = df['Mois escale'].dropna().unique()
+                        mois_tries = sorted(mois_present, key=lambda m: mois_dict_rpt.get(m, 0))
+                        dernier_mois = mois_tries[-1] if len(mois_tries) > 0 else 'Janvier'
+                        mois_num_max = mois_dict_rpt.get(dernier_mois, 1)
+
+                        # Determine period mode: if multiple months → YTD, single → month
+                        if len(mois_tries) > 1:
+                            auto_label = f"YTD {dernier_mois}"
+                            auto_ytd = True
+                        else:
+                            auto_label = dernier_mois
+                            auto_ytd = False
+                        r_single = len(annees) == 1
+                        _log(f"Periode detectee : <b>{auto_label} {int(max(annees)) if len(annees) else '?'}</b> | Annees : {[int(a) for a in annees]}", "ok")
+
+                        metric_unit = 'Kg' if dtype == 'aerien' else 'Teus'
+
+                        # Process each flux as separate section
+                        for flux in flux_detected:
+                            flux_col = df['I_IMP_E_EXP'].fillna('').astype(str).str.upper().str.strip()
+                            df_flux = df[flux_col.str.startswith(flux)].copy()
+                            if df_flux.empty:
                                 continue
-                            result = process_report_file(f, flux, dtype)
-                            if result is None:
-                                st.warning(f"⚠ {sec_name} : fichier invalide ou colonnes manquantes, section ignorée.")
-                                continue
-                            if len(result) == 4:
-                                df_clean, r_ccol, r_mu, r_geo_col = result
-                            else:
-                                df_clean, r_ccol, r_mu = result
-                                r_geo_col = 'Pays de livraison'
-                            annees = df_clean['Année escale'].dropna().unique()
-                            r_single = len(annees) == 1
 
-                            # Apply same period filter as dashboard
-                            mois_dict_rpt = {'Janvier':1,'Février':2,'Mars':3,'Avril':4,'Mai':5,'Juin':6,
-                                             'Juillet':7,'Août':8,'Septembre':9,'Octobre':10,'Novembre':11,'Décembre':12}
-                            mois_num_rpt = mois_dict_rpt.get(mois_cible, 0)
-                            if analyse_type == "Cumul (YTD)":
-                                valid_m = [m for m in df_clean['Mois escale'].dropna().unique()
-                                           if mois_dict_rpt.get(m, 0) <= mois_num_rpt]
-                                r_cible = df_clean[df_clean['Mois escale'].isin(valid_m)]
-                            else:
-                                r_cible = df_clean[df_clean['Mois escale'] == mois_cible]
+                            flux_name = "Import" if flux == 'I' else "Export"
+                            dtype_name = "Aérien" if dtype == 'aerien' else "Maritime"
+                            sec_name = f"{flux_name} {dtype_name}"
+                            r_ccol = "Destinataire" if flux == 'I' else "Chargeur"
 
-                            # Apply geographic and packaging filters from dashboard
-                            # For Export: use 'Pays de prise en charge', for Import: 'Pays de livraison'
-                            if pays_prise_charge and r_geo_col in r_cible.columns:
-                                r_cible = r_cible[r_cible[r_geo_col].isin(pays_prise_charge)]
-                            if pays_livraison_extra and 'Pays de livraison' in r_cible.columns:
-                                r_cible = r_cible[r_cible['Pays de livraison'].isin(pays_livraison_extra)]
-                            if conditionnements and 'Conditionnement' in r_cible.columns:
-                                r_cible = r_cible[r_cible['Conditionnement'].isin(conditionnements)]
+                            if r_ccol not in df_flux.columns:
+                                alt = "Chargeur" if r_ccol == "Destinataire" else "Destinataire"
+                                r_ccol = alt if alt in df_flux.columns else None
+                                if r_ccol is None:
+                                    _log(f"{sec_name} : colonne client introuvable - section ignoree", "warn")
+                                    continue
+
+                            # Geo col
+                            r_geo_col = 'Pays de livraison'
+                            if flux == 'E' and 'Pays de prise en charge' in df_flux.columns:
+                                r_geo_col = 'Pays de prise en charge'
+
+                            # Filter CI only for PPTX report (Hors Transitaires Intégrés)
+                            if r_geo_col in df_flux.columns:
+                                ci_mask = df_flux[r_geo_col].astype(str).str.upper().str.contains('IVOIRE', na=False)
+                                n_before = len(df_flux)
+                                df_flux = df_flux[ci_mask].copy()
+                                n_filtered = n_before - len(df_flux)
+                                if n_filtered > 0:
+                                    _log(f"{sec_name} : filtre CI applique ({n_filtered} lignes hors CI exclues)")
+
+                            # Filter to detected period
+                            if auto_ytd:
+                                valid_m = [m for m in df_flux['Mois escale'].dropna().unique()
+                                           if mois_dict_rpt.get(m, 0) <= mois_num_max]
+                                r_cible = df_flux[df_flux['Mois escale'].isin(valid_m)]
+                            else:
+                                r_cible = df_flux[df_flux['Mois escale'] == dernier_mois]
 
                             if r_cible.empty:
-                                st.warning(f"⚠ {sec_name} : aucune donnée pour {label_periode}, section ignorée.")
+                                _log(f"{sec_name} : aucune donnee pour {auto_label} - section ignoree", "warn")
                                 continue
 
                             r_res26 = get_stats_annee(r_cible[r_cible['Année escale'] == 2026], 2026, r_ccol)
@@ -1661,32 +1920,54 @@ if st.session_state.validated:
                                 r_comp['Total_Marche_2025'] = 0
                                 r_comp['PDM_2025'] = 0
 
+                            if sec_name in sections:
+                                _log(f"{sec_name} deja charge - fusion des donnees", "warn")
+
                             sections[sec_name] = {
                                 'comparison': r_comp, 'res_2026': r_res26,
                                 'df_cible': r_cible, 'client_col': r_ccol,
-                                'metric_unit': r_mu, 'data_type': dtype,
+                                'metric_unit': metric_unit, 'data_type': dtype,
+                                'is_single': r_single,
                             }
-                    else:
-                        # Single-section mode: use current dashboard data
-                        dt_label = "Aérien" if st.session_state.get('data_type') == 'aerien' else "Maritime"
-                        flux_label = st.session_state.get('client_col', 'Destinataire')
-                        sec_name = f"{'Import' if flux_label == 'Destinataire' else 'Export'} {dt_label}"
-                        sections[sec_name] = {
-                            'comparison': comparison, 'res_2026': res_2026,
-                            'df_cible': df_cible, 'client_col': client_col,
-                            'metric_unit': st.session_state.get('metric_unit', 'Teus'),
-                            'data_type': st.session_state.get('data_type', 'maritime'),
-                        }
+                            total_vol = int(r_cible['NOMBRE_TEU'].sum())
+                            _log(f"<b>{sec_name}</b> - {len(r_cible)} lignes, {total_vol:,} {metric_unit}, {r_cible[r_ccol].nunique()} clients", "ok")
 
+                    # Use auto-detected label for the report
                     if sections:
-                        pptx_data = generate_pptx_report(sections, label_periode, is_single_month)
-                        st.session_state['pptx_data'] = pptx_data
-                except Exception:
-                    st.info("Aucune section valide détectée.")
+                        # Take the broadest period across all sections
+                        report_label = auto_label
+                        report_single = all(s.get('is_single', False) for s in sections.values())
+                    else:
+                        report_label = label_periode
+                        report_single = is_single_month
+                else:
+                    # Single-section mode: use current dashboard data
+                    _log("Mode section unique — utilisation des données du dashboard")
+                    dt_label = "Aérien" if st.session_state.get('data_type') == 'aerien' else "Maritime"
+                    flux_label = st.session_state.get('client_col', 'Destinataire')
+                    sec_name = f"{'Import' if flux_label == 'Destinataire' else 'Export'} {dt_label}"
+                    sections[sec_name] = {
+                        'comparison': comparison, 'res_2026': res_2026,
+                        'df_cible': df_cible, 'client_col': client_col,
+                        'metric_unit': st.session_state.get('metric_unit', 'Teus'),
+                        'data_type': st.session_state.get('data_type', 'maritime'),
+                    }
+                    report_label = label_periode
+                    report_single = is_single_month
+
+                if sections:
+                    _log(f"Generation du PPTX - {len(sections)} section(s) : {', '.join(sections.keys())}")
+                    pptx_data = generate_pptx_report(sections, report_label, report_single)
+                    st.session_state['pptx_data'] = pptx_data
+                    _log(f"Rapport genere avec succes !", "ok")
+                else:
+                    _log("Aucune section valide détectée.", "err")
+            except Exception as exc:
+                _log(f"Erreur lors de la génération : {exc}", "err")
+
     with col_info:
         if has_report_files:
-            loaded = [k for k, v in report_files.items() if v is not None]
-            st.caption(f"Sections détectées : {', '.join(loaded)}")
+            st.caption(f"{len(report_files_list)} fichier(s) chargé(s) — la détection automatique identifiera les sections")
     if st.session_state.get('pptx_data'):
         col_dl, _ = st.columns([1, 5])
         with col_dl:
@@ -2236,6 +2517,8 @@ if st.session_state.validated:
             comp['AGL_Volume_2025'] = comp['AGL_Volume_2025'].fillna(0)
             comp['Variation_AGL'] = comp['AGL_Volume_2026'] - comp['AGL_Volume_2025']
 
+            # Exclure clients Etat/mines de la concurrence
+            comp = comp[~comp[client_col].apply(_is_excluded_client)]
             # Filtrer : clients EN BAISSE (variation < 0), PDM AGL <= 50%
             comp_filtered = comp[(comp['Variation_AGL'] < 0) & (comp['PDM_2026'] <= 50)]
             
