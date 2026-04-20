@@ -2231,37 +2231,39 @@ if st.session_state.validated:
             comp['PDM CONCURRENT']    = (comp['TEUS 1ER CONCURRENT'] / comp['Total_Marche_2026']) * 100
             comp = comp.fillna(0)
 
-            disp = comp[[client_col, 'Total_Marche_2026', 'AGL_Volume_2026', 'PDM_2026', 'VOL. CONCURRENCE', '1ER CONCURRENT EN 2026', 'TEUS 1ER CONCURRENT', 'PDM CONCURRENT']].copy()
-            unit_upper_conc = st.session_state.get('metric_unit', 'Teus').upper()
-            col_marche = f'MARCHÉ {label_periode.upper()} 2026'
-            col_agl = f'AGL {unit_upper_conc} 2026'
-            disp.columns = ['CLIENTS', col_marche, col_agl, 'PDM AGL', 'VOL. CONCURRENCE', '1ER CONCURRENT 2026', f'{unit_upper_conc} CONCURRENT', 'PDM CONCURRENT']
-            
-            # Convertir en string AVANT le remplacement pour éviter les types mixtes
-            disp['1ER CONCURRENT 2026'] = disp['1ER CONCURRENT 2026'].astype(str).replace('0', 'Aucun').replace('0.0', 'Aucun')
-            
-            for col in disp.columns:
-                if any(k in col for k in [unit_upper_conc, 'VOL', 'MARCHÉ', 'PDM']):
-                    disp[col] = disp[col].fillna(0).astype(int)
+            # Ajouter variation AGL (2026 vs 2025) pour identifier clients en baisse
+            comp = pd.merge(comp, res_2025[[client_col, 'AGL_Volume_2025']], on=client_col, how='left')
+            comp['AGL_Volume_2025'] = comp['AGL_Volume_2025'].fillna(0)
+            comp['Variation_AGL'] = comp['AGL_Volume_2026'] - comp['AGL_Volume_2025']
 
-            # ─────────────────────────────────────────────
-            # FILTRE CHECKBOX — AGL NON NUL
-            # ─────────────────────────────────────────────
-            st.markdown("<br>", unsafe_allow_html=True)
-            show_only_agl = st.checkbox(
-                f"Afficher seulement où AGL {unit_upper_conc} > 0 (concurrence AGL vs autres transitaires)",
-                value=True,
-                key="checkbox_agl_nonull"
-            )
+            # Filtrer : clients EN BAISSE (variation < 0), PDM AGL <= 50%
+            comp_filtered = comp[(comp['Variation_AGL'] < 0) & (comp['PDM_2026'] <= 50)]
             
-            # Appliquer le filtre
-            disp_filtered = disp[(disp[col_agl] > 0) & (disp['PDM AGL'] < 100)] if show_only_agl else disp
-            
-            # Tri descendant merged : d'abord MARCHÉ, puis AGL TEUS
-            disp_filtered = disp_filtered.sort_values(by=[col_marche, col_agl], ascending=False)
-            
-            st.markdown("<hr style='margin: 10px 0 20px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
-            editable_dataframe(disp_filtered, "concurrence", has_total_row=False)
+            if comp_filtered.empty:
+                st.info("Aucun client en baisse avec PDM AGL ≤ 50% dans cette période.")
+            else:
+                # Créer colonne "Variation Marché - AGL TEUS"
+                comp_filtered['Var_Marche_Moins_AGL'] = comp_filtered['Total_Marche_2026'] - comp_filtered['AGL_Volume_2026']
+
+                # Top 20, tri descendant par variation
+                comp_top20 = comp_filtered.nlargest(20, 'Var_Marche_Moins_AGL')
+
+                disp = comp_top20[[client_col, 'Total_Marche_2026', 'AGL_Volume_2026', 'PDM_2026', 'VOL. CONCURRENCE', '1ER CONCURRENT EN 2026', 'TEUS 1ER CONCURRENT', 'PDM CONCURRENT', 'Var_Marche_Moins_AGL']].copy()
+                unit_upper_conc = st.session_state.get('metric_unit', 'Teus').upper()
+                col_marche = f'MARCHÉ {label_periode.upper()} 2026'
+                col_agl = f'AGL {unit_upper_conc} 2026'
+                col_var = f'VAR MARCHÉ - AGL {unit_upper_conc}'
+                disp.columns = ['CLIENTS', col_marche, col_agl, 'PDM AGL', 'VOL. CONCURRENCE', '1ER CONCURRENT 2026', f'{unit_upper_conc} CONCURRENT', 'PDM CONCURRENT', col_var]
+                
+                # Convertir en string AVANT le remplacement pour éviter les types mixtes
+                disp['1ER CONCURRENT 2026'] = disp['1ER CONCURRENT 2026'].astype(str).replace('0', 'Aucun').replace('0.0', 'Aucun')
+                
+                for col in disp.columns:
+                    if any(k in col for k in [unit_upper_conc, 'VOL', 'MARCHÉ', 'PDM', 'VAR']):
+                        disp[col] = disp[col].fillna(0).astype(int)
+
+                st.markdown("<hr style='margin: 10px 0 20px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
+                editable_dataframe(disp, "concurrence", has_total_row=False)
         else:
             st.info("Aucune donnée d'analyse concurrentielle pour cette période.")
 
