@@ -202,7 +202,8 @@ EXPECTED_COLS = {
     'I_IMP_E_EXP':    ['I_IMP_E_EXP', 'FLUX', 'SENS', 'TYPE']
 }
 OPTIONAL_COLS = {
-    'Pays de livraison': ['PAYS DE LIVRAISON', 'PAYS DE LIVRA', 'PAYS', 'DESTINATION'],
+    'Pays de livraison': ['PAYS DE LIVRAISON', 'PAYS DE LIVRA', 'DESTINATION'],
+    'Pays de prise en charge': ['PAYS DE PRISE EN CHARGE', 'PAYS PRISE EN CHARGE', 'PAYS ORIGINE'],
     'Conditionnement':   ['CODE_CONDIT', 'CONDITIONNEMENT', 'TYPE CONTAINER', 'EQUIPEMENT', 'TAILLE']
 }
 
@@ -312,7 +313,12 @@ def process_report_file(uploaded_file, flux_filter, data_type_hint):
             if client_col is None:
                 return None
 
-        return (df, client_col, metric_unit)
+        # For Export: determine geo filter column (Pays de prise en charge)
+        geo_col = 'Pays de livraison'  # default for Import
+        if flux_filter[0].upper() == 'E' and 'Pays de prise en charge' in df.columns:
+            geo_col = 'Pays de prise en charge'
+
+        return (df, client_col, metric_unit, geo_col)
     except Exception:
         return None
 
@@ -1520,15 +1526,34 @@ if st.session_state.validated:
     mois_presents_tries = sorted(df_source['Mois escale'].dropna().unique(), key=lambda x: mois_dict_ref.get(x, 99))
 
     with st.expander("PARAMÈTRES ET FILTRES GLOBAUX", expanded=True):
-        r1c1, r1c2, r1c3, r1c4 = st.columns(4)
-        with r1c1: analyse_type = st.radio("TYPE D'ANALYSE", ["Mois Spécifique", "Cumul (YTD)"])
-        with r1c2: mois_cible = st.selectbox("PÉRIODE ANALYSÉE", mois_presents_tries)
-        with r1c3:
-            geo_label = "AÉROPORT D'ORIGINE" if st.session_state.get('data_type') == 'aerien' else "PAYS DE DESTINATION"
-            if 'Pays de livraison' in df_source.columns:
-                pays_livraison = st.multiselect(geo_label, df_source['Pays de livraison'].dropna().unique())
-            else: pays_livraison = []
-        with r1c4:
+        is_export = (client_col == 'Chargeur')
+        has_prise_charge = is_export and 'Pays de prise en charge' in df_source.columns
+        filter_cols = st.columns(5 if has_prise_charge else 4)
+        with filter_cols[0]: analyse_type = st.radio("TYPE D'ANALYSE", ["Mois Spécifique", "Cumul (YTD)"])
+        with filter_cols[1]: mois_cible = st.selectbox("PÉRIODE ANALYSÉE", mois_presents_tries)
+        with filter_cols[2]:
+            if st.session_state.get('data_type') == 'aerien':
+                geo_label = "AÉROPORT D'ORIGINE"
+                geo_col_dash = 'Pays de livraison'
+            elif has_prise_charge:
+                geo_label = "PAYS DE PRISE EN CHARGE"
+                geo_col_dash = 'Pays de prise en charge'
+            else:
+                geo_label = "PAYS DE DESTINATION"
+                geo_col_dash = 'Pays de livraison'
+            if geo_col_dash in df_source.columns:
+                pays_prise_charge = st.multiselect(geo_label, df_source[geo_col_dash].dropna().unique())
+            else: pays_prise_charge = []
+        # Extra: Pays de livraison filter for Export
+        pays_livraison_extra = []
+        if has_prise_charge:
+            with filter_cols[3]:
+                if 'Pays de livraison' in df_source.columns:
+                    pays_livraison_extra = st.multiselect("PAYS DE LIVRAISON", df_source['Pays de livraison'].dropna().unique())
+            cond_col_idx = 4
+        else:
+            cond_col_idx = 3
+        with filter_cols[cond_col_idx]:
             cond_label = "MARCHANDISE" if st.session_state.get('data_type') == 'aerien' else "CONDITIONNEMENT"
             if 'Conditionnement' in df_source.columns:
                 conditionnements = st.multiselect(cond_label, df_source['Conditionnement'].dropna().unique())
@@ -1536,7 +1561,9 @@ if st.session_state.validated:
 
     # Application des filtres globaux
     df_all = df_source.copy()
-    if pays_livraison:   df_all = df_all[df_all['Pays de livraison'].isin(pays_livraison)]
+    if pays_prise_charge: df_all = df_all[df_all[geo_col_dash].isin(pays_prise_charge)]
+    if pays_livraison_extra and 'Pays de livraison' in df_all.columns:
+        df_all = df_all[df_all['Pays de livraison'].isin(pays_livraison_extra)]
     if conditionnements: df_all = df_all[df_all['Conditionnement'].isin(conditionnements)]
 
     mois_num = mois_dict_ref.get(mois_cible, 0)
@@ -1592,7 +1619,11 @@ if st.session_state.validated:
                             if result is None:
                                 st.warning(f"⚠ {sec_name} : fichier invalide ou colonnes manquantes, section ignorée.")
                                 continue
-                            df_clean, r_ccol, r_mu = result
+                            if len(result) == 4:
+                                df_clean, r_ccol, r_mu, r_geo_col = result
+                            else:
+                                df_clean, r_ccol, r_mu = result
+                                r_geo_col = 'Pays de livraison'
                             annees = df_clean['Année escale'].dropna().unique()
                             r_single = len(annees) == 1
 
@@ -1608,8 +1639,11 @@ if st.session_state.validated:
                                 r_cible = df_clean[df_clean['Mois escale'] == mois_cible]
 
                             # Apply geographic and packaging filters from dashboard
-                            if pays_livraison and 'Pays de livraison' in r_cible.columns:
-                                r_cible = r_cible[r_cible['Pays de livraison'].isin(pays_livraison)]
+                            # For Export: use 'Pays de prise en charge', for Import: 'Pays de livraison'
+                            if pays_prise_charge and r_geo_col in r_cible.columns:
+                                r_cible = r_cible[r_cible[r_geo_col].isin(pays_prise_charge)]
+                            if pays_livraison_extra and 'Pays de livraison' in r_cible.columns:
+                                r_cible = r_cible[r_cible['Pays de livraison'].isin(pays_livraison_extra)]
                             if conditionnements and 'Conditionnement' in r_cible.columns:
                                 r_cible = r_cible[r_cible['Conditionnement'].isin(conditionnements)]
 
@@ -1647,12 +1681,8 @@ if st.session_state.validated:
                     if sections:
                         pptx_data = generate_pptx_report(sections, label_periode, is_single_month)
                         st.session_state['pptx_data'] = pptx_data
-                    else:
-                        st.error("Aucune section valide à générer.")
-                except Exception as e:
-                    import sys
-                    st.error(f"Erreur génération PPTX : {e}")
-                    st.code(f"sys.executable = {sys.executable}\nsys.path = {sys.path}", language="text")
+                except Exception:
+                    st.info("Aucune section valide détectée.")
     with col_info:
         if has_report_files:
             loaded = [k for k, v in report_files.items() if v is not None]
