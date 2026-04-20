@@ -1363,8 +1363,6 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
 
         merged = pd.merge(comp, tc[[client_col, '1ER_CONC', 'TEUS_CONC']], on=client_col, how='left').fillna(0)
         merged['VOL_CONC'] = merged['Total_Marche_2026'] - merged['AGL_Volume_2026']
-        # Exclure clients Etat/mines de la concurrence PPTX
-        merged = merged[~merged[client_col].apply(_is_excluded_client)]
         if not is_single and 'AGL_Volume_2025' in merged.columns:
             merged['Variation'] = merged['AGL_Volume_2026'] - merged['AGL_Volume_2025']
             # TOP 20 "en baisse": declining AGL clients sorted by competition volume
@@ -1471,31 +1469,44 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
                 r.font.size = Pt(9)
 
     def update_analyse_group(slide, comp, mu, is_single):
-        """Update the 3 analysis summary boxes (100% PDM, Actifs/Inactifs, Hausse/Baisse)."""
+        """Update the 3 analysis summary boxes (100% PDM, Actifs/Inactifs, Hausse/Baisse).
+        Same classification as commit 9 _categorize_clients (95% PDM ratio, active_both).
+        """
         if is_single:
             return
         comp_a = comp.copy()
         comp_a['Variation'] = comp_a['AGL_Volume_2026'] - comp_a['AGL_Volume_2025']
 
-        # Classification
-        pdm100 = comp_a[comp_a['PDM_2026'] >= 100]
-        remaining = comp_a[comp_a['PDM_2026'] < 100]
+        # Filter to AGL clients only (same as dashboard comp_agl)
+        comp_a = comp_a[(comp_a['AGL_Volume_2026'] > 0) | (comp_a['AGL_Volume_2025'] > 0)]
 
-        pdm100_up = pdm100[pdm100['Variation'] > 0]
-        pdm100_down = pdm100[pdm100['Variation'] < 0]
-        n_pdm100 = len(pdm100)
-        total_pdm100 = int(pdm100['Variation'].sum())
+        # PDM as ratios (0-1)
+        comp_a['PDM_r_26'] = comp_a.apply(lambda r: r['AGL_Volume_2026'] / r['Total_Marche_2026']
+                                          if r['Total_Marche_2026'] > 0 else 0, axis=1)
+        comp_a['PDM_r_25'] = comp_a.apply(lambda r: r['AGL_Volume_2025'] / r['Total_Marche_2025']
+                                          if r['Total_Marche_2025'] > 0 else 0, axis=1)
 
-        actifs = remaining[(remaining['AGL_Volume_2025'] == 0) & (remaining['AGL_Volume_2026'] > 0)]
-        inactifs = remaining[(remaining['AGL_Volume_2026'] == 0) & (remaining['AGL_Volume_2025'] > 0)]
+        # active_both = market present in both years
+        active_both = comp_a[(comp_a['Total_Marche_2025'] > 0) & (comp_a['Total_Marche_2026'] > 0)]
+        captive = active_both[(active_both['PDM_r_25'] >= 0.95) & (active_both['PDM_r_26'] >= 0.95) &
+                              (active_both['AGL_Volume_2025'] > 0) & (active_both['AGL_Volume_2026'] > 0)]
+        non_captive = active_both[~active_both.index.isin(captive.index)]
+
+        # Actifs/Inactifs: market-absent one year
+        actifs = comp_a[(comp_a['Total_Marche_2025'] == 0) & (comp_a['AGL_Volume_2026'] > 0)]
+        inactifs = comp_a[(comp_a['Total_Marche_2026'] == 0) & (comp_a['AGL_Volume_2025'] > 0)]
+
+        pdm100_up = captive[captive['Variation'] >= 0]
+        pdm100_down = captive[captive['Variation'] < 0]
+        others_up = non_captive[non_captive['Variation'] > 0]
+        others_down = non_captive[non_captive['Variation'] < 0]
+
+        n_pdm100 = len(pdm100_up) + len(pdm100_down)
+        total_pdm100 = int(pdm100_up['Variation'].sum() + pdm100_down['Variation'].sum())
         n_actifs, vol_actifs = len(actifs), int(actifs['Variation'].sum())
         n_inactifs, vol_inactifs = len(inactifs), int(inactifs['Variation'].sum())
         total_ai = vol_actifs + vol_inactifs
-
-        others = remaining[(remaining['AGL_Volume_2025'] > 0) & (remaining['AGL_Volume_2026'] > 0)]
-        others_up = others[others['Variation'] > 0]
-        others_down = others[others['Variation'] < 0]
-        total_autres = int(others['Variation'].sum())
+        total_autres = int(others_up['Variation'].sum() + others_down['Variation'].sum())
 
         def _fmt(val):
             v = int(val)
@@ -1572,8 +1583,8 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
                 _set_shape_multiline(summary_sh,
                     f"Clients Actifs et Inactifs  {_fmt(total_ai)} {mu}")
                 _set_shape_multiline(detail_sh,
-                    f"{n_actifs:02d} Clients Actifs en 2026        {_fmt(vol_actifs)} {mu}\n"
-                    f"{n_inactifs:02d} Clients Inactifs en 2026      {_fmt(vol_inactifs)} {mu}")
+                    f"{n_actifs:02d} Clients Actifs en 2025        {_fmt(vol_actifs)} {mu}\n"
+                    f"{n_inactifs:02d} Clients Inactifs en 2025      {_fmt(vol_inactifs)} {mu}")
             else:
                 _set_shape_multiline(summary_sh,
                     f"Autres Clients en Hausse et en Baisse  {_fmt(total_autres)} {mu}")
