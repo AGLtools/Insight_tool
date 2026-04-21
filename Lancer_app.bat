@@ -1,65 +1,99 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
+
 :: ===========================================
-::  LANCEUR AGL DASHBOARD (python_portable)
+::  LANCEUR AGL DASHBOARD (venv_agl isolated)
 :: ===========================================
 cd /d "%~dp0"
 
-:: Detecte Python : python_portable d'abord, sinon systeme
+:: Detect Python: python_portable first, then system
 if exist "%~dp0python_portable\python.exe" (
-    set PY="%~dp0python_portable\python.exe"
-    goto :found_python
+    set "PY=%~dp0python_portable\python.exe"
+    goto found_python
 )
 
 python --version >nul 2>&1
 if %errorlevel% equ 0 (
-    set PY=python
-    goto :found_python
+    set "PY=python"
+    goto found_python
 )
 
-echo [ERREUR] Aucun Python trouve !
-echo Placez le dossier python_portable a cote de ce script.
-echo Chemin attendu : %~dp0python_portable\python.exe
+echo [ERROR] No Python found.
+echo Expected: %~dp0python_portable\python.exe
 pause
 exit /b 1
 
 :found_python
-echo [INFO] Python : %PY%
+echo [INFO] Python: %PY%
 
-:: Supprimer le verrou EXTERNALLY-MANAGED si present (python_portable)
-if exist "%~dp0python_portable\Lib\EXTERNALLY-MANAGED" del /f "%~dp0python_portable\Lib\EXTERNALLY-MANAGED"
-dir /b /ad "%~dp0python_portable\Lib\python*" >nul 2>&1 && (
-    for /f "delims=" %%D in ('dir /b /ad "%~dp0python_portable\Lib\python*" 2^>nul') do (
-        if exist "%~dp0python_portable\Lib\%%D\EXTERNALLY-MANAGED" del /f "%~dp0python_portable\Lib\%%D\EXTERNALLY-MANAGED"
+:: Ensure pip is available on base Python
+"%PY%" -m pip --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [INFO] pip not found, bootstrapping with ensurepip...
+    "%PY%" -m ensurepip --upgrade >nul 2>&1
+)
+
+:: Create venv on first run
+if not exist "%~dp0venv_agl\Scripts\python.exe" (
+    echo [INFO] First run - creating isolated environment...
+    "%PY%" -m venv "%~dp0venv_agl" --copies
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to create venv_agl.
+        pause
+        exit /b 1
     )
+    echo [OK] venv_agl created.
+) else (
+    echo [INFO] venv_agl already exists.
 )
 
-:: S'assurer que pip est disponible
-%PY% -m pip --version >nul 2>&1
-if !errorlevel! neq 0 (
-    echo [INFO] pip absent, bootstrap via ensurepip...
-    %PY% -m ensurepip --upgrade >nul 2>&1
-)
-%PY% -m pip install --upgrade pip setuptools wheel --no-warn-script-location --break-system-packages -q >nul 2>&1
+set "VENV_PY=%~dp0venv_agl\Scripts\python.exe"
+set "VENV_PIP=%~dp0venv_agl\Scripts\pip.exe"
 
-:: Verification et installation des packages requis
-echo [INFO] Verification des dependances...
-%PY% -m pip install -r "%~dp0requirements.txt" --no-warn-script-location --break-system-packages
-if !errorlevel! neq 0 (
-    echo [ERREUR] L'installation des dependances a echoue.
-    echo Verifiez votre connexion internet.
+if not exist "%VENV_PY%" (
+    echo [ERROR] Missing venv python: %VENV_PY%
     pause
     exit /b 1
 )
-echo [INFO] Toutes les dependances sont OK.
 
+if not exist "%VENV_PIP%" (
+    echo [ERROR] Missing venv pip: %VENV_PIP%
+    pause
+    exit /b 1
+)
 
-:: Lance Streamlit en mode headless et ouvre le navigateur
+echo [INFO] Installing/updating dependencies...
+"%VENV_PIP%" install --upgrade pip setuptools wheel
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed while upgrading pip/setuptools/wheel.
+    pause
+    exit /b 1
+)
+
+"%VENV_PIP%" install -r "%~dp0requirements.txt"
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to install requirements.txt
+    pause
+    exit /b 1
+)
+
+echo [OK] Dependencies are ready.
+echo.
+echo ===========================================
+echo   STARTING AGL DASHBOARD
+echo ===========================================
+echo Opening: http://localhost:8501
+echo.
+
 start "" http://localhost:8501
-%PY% -m streamlit run "%~dp0app.py" --server.headless true
+"%VENV_PY%" -m streamlit run "%~dp0app.py" --server.headless true
 
 if %errorlevel% neq 0 (
     echo.
-    echo [ERREUR] Streamlit s'est arrete avec une erreur.
+    echo [ERROR] Streamlit stopped with an error.
+    echo Check logs above.
     pause
+    exit /b 1
 )
+
+pause

@@ -3,6 +3,8 @@ python_portable/
 
 # Virtual environments
 env_agl/
+venv_agl/
+.venv/
 
 # Python cache
 __pycache__/
@@ -13,7 +15,9 @@ DATA/REPORT/
 # Streamlit cache (keep config)
 .streamlit/cache/
 .streamlit/credentials.toml
-
+#IGNORE
+IGNORE/
+.gitignore
 # OS files
 Thumbs.db
 desktop.ini
