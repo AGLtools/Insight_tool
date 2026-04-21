@@ -16,7 +16,7 @@ import io
 
 # Fichier cache pour les noms de colonnes personnalisés
 COLUMN_NAMES_CACHE_FILE = os.path.join(os.path.dirname(__file__), '.column_names_cache.json')
-
+EXCLUDED_CLIENTS_FILE = os.path.join(os.path.dirname(__file__), 'excluded_clients.json')
 def load_column_names_cache():
     """Charge les noms de colonnes personnalisés depuis le fichier cache."""
     if os.path.exists(COLUMN_NAMES_CACHE_FILE):
@@ -196,33 +196,47 @@ def reset_validation():
 # ─────────────────────────────────────────────
 
 # Clients exclus de la concurrence et commentaires (Etat, mines, etc.)
-EXCLUDED_CLIENTS = {
-    'AFRIK MINE SARL CI', 'AMINE SERVICES PLUS CI', 'BONIKRO GOLD MINE CI',
-    'DOUMBIA MOHAMED LAMINE CI', 'KAMAGATE INZATOU YASMINE CI',
-    'MINES ET EXPLOITATION EN AFRIQUE DE L\'OUEST (MINEX WA )',
-    'SAMINE CORPORATION CI', 'STE DES MINES DE LAFIGUE SA CI',
-    'STE DES MINES D\'ITY', 'STE GLE D\'EXPLOIT.DE MINES&MIN',
-    'TASSA MELAMINE SARL CI', 'TONGON GOLD MINE CI',
-    'TONGONAISE DES MINES CI (TOMI)', 'WAMINES CI',
-    'DEKEL OIL CI', 'OLA ENERGY (EX LIBYA OIL CI)',
-    'ABIDJAN INTERNATIONAL MINISTRY', 'MINIST.FEM.FAMIL.PROTEC.ENF.CI',
-    'MINISTERE DE ENSEIGNEMENT TECH',
-    'MINISTERE DE LA COHESION NATIONALE ET DA LA SOLIDARITE CI',
-    'MINISTERE DE LA DEFENSE DE CI', 'MINISTERE DE LA SECURITE CI',
-    'MINISTERE DE L\'AGRICULTURE CI',
-    'MINISTERE DE L\'ENSEIGNEMENT SECONDAIRE TECHNIQUE ET DE LA FORMATION',
-    'MINISTERE DE L\'HYDRAULIQUE CI', 'MINISTERE DE L\'INTERIEUR',
-    'MINISTERE DE SANTE PUBLIQUE CI', 'MINISTERE DES AFFAIR.ETRANG CI',
-    'MINISTERE DES RESSOUR.ANI.HALI', 'MINISTERE DES TRANSPORT CI',
-    'MINISTERE PRODUCTION ANIMAL', 'MINISTERE TOURISME LOISIRS CI',
-    'ENI CI', 'PERSEUS MINING CI',
-}
-EXCLUDED_CLIENTS_UPPER = {c.upper() for c in EXCLUDED_CLIENTS}
+
+EXCLUDED_CLIENTS_UPPER = {c.upper() for c in EXCLUDED_CLIENTS_FILE}
+
+def load_excluded_clients():
+    """Charge la liste des clients exclus depuis le fichier JSON."""
+    if os.path.exists(EXCLUDED_CLIENTS_FILE):
+        try:
+            with open(EXCLUDED_CLIENTS_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get('excluded_clients', [])
+        except:
+            return []
+    return []
+
+def save_excluded_clients(clients_list):
+    """Sauvegarde la liste des clients exclus dans le fichier JSON."""
+    try:
+        with open(EXCLUDED_CLIENTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'excluded_clients': clients_list}, f, ensure_ascii=False, indent=2)
+    except:
+        pass
+
+def add_excluded_clients(new_clients):
+    """Ajoute des clients à la liste noire (sans doublon)."""
+    current = load_excluded_clients()
+    updated = list(set(current + new_clients))
+    save_excluded_clients(updated)
+
+def remove_excluded_clients(clients_to_remove):
+    """Retire des clients de la liste noire."""
+    current = load_excluded_clients()
+    updated = [c for c in current if c not in clients_to_remove]
+    save_excluded_clients(updated)
 
 def _is_excluded_client(name):
-    """Check if a client name matches the exclusion list (substring match on MINE/MINISTERE + exact)."""
+    """Check if a client name matches the exclusion list (substring match on MINE/MINISTERE + exact from JSON)."""
     up = str(name).upper().strip()
-    if up in EXCLUDED_CLIENTS_UPPER:
+    # Charger la liste noire depuis le fichier
+    excluded_list = load_excluded_clients()
+    excluded_upper = {c.upper() for c in excluded_list}
+    if up in excluded_upper:
         return True
     # Substring patterns for broader matching
     for kw in ['MINISTERE', 'MINISTRY', 'MINE ', 'MINES ', 'MINING', 'GOLD MINE']:
@@ -238,9 +252,9 @@ def _is_non_apure(value):
     return s in ('', '0', '0.0', 'NAN', 'N/A', 'NON APURE', 'NONE')
 
 def _select_primary_competitor_rows(df_comp, client_col, trans_col='Transitaire', volume_col='NOMBRE_TEU'):
-    """Select the main competitor per client, preferring values other than NON APURE.
+    """Select main competitor per client, skipping NON APURE when possible.
 
-    If all competitors are NON APURE for a client, keep the highest-volume row and label it NON APURE.
+    If every candidate is NON APURE, keep the top row and label it NON APURE.
     """
     if df_comp.empty:
         return pd.DataFrame(columns=[client_col, trans_col, volume_col])
@@ -253,7 +267,9 @@ def _select_primary_competitor_rows(df_comp, client_col, trans_col='Transitaire'
 
         chosen_row = None
         for _, row in client_data.iterrows():
-            if not _is_non_apure(row[trans_col]):
+            vol = pd.to_numeric(row[volume_col], errors='coerce')
+            vol = float(vol) if pd.notna(vol) else 0.0
+            if (not _is_non_apure(row[trans_col])) and (vol > 0):
                 chosen_row = row.copy()
                 break
 
@@ -608,35 +624,33 @@ def editable_dataframe(df, key_prefix, has_total_row=True, use_global_names=Fals
     )
     return df_final
 
-def format_view_table(df, label_periode, client_col):
-    """Prépare les données pour le data_editor avec Ligne Total intégrée et triée en haut."""
+def format_view_table(df, label_periode, client_col, cur_year=2026, prev_year=2025):
     if df.empty: return pd.DataFrame()
     unit_upper = st.session_state.get('metric_unit', 'Teus').upper()
 
-    cols_to_keep = [client_col, 'Total_Marche_2026', 'AGL_Volume_2026', 'PDM_2026']
-    if 'Total_Marche_2025' in df.columns:
-        cols_to_keep += ['Total_Marche_2025', 'AGL_Volume_2025', 'PDM_2025', 'Variation_Volume']
+    cols_to_keep = [client_col, f'Total_Marche_{cur_year}', f'AGL_Volume_{cur_year}', f'PDM_{cur_year}']
+    if f'Total_Marche_{prev_year}' in df.columns:
+        cols_to_keep += [f'Total_Marche_{prev_year}', f'AGL_Volume_{prev_year}', f'PDM_{prev_year}', 'Variation_Volume']
 
     res = df[cols_to_keep].copy()
 
     total_row = {client_col: "TOTAL GLOBAL"}
-    total_row['Total_Marche_2026'] = res['Total_Marche_2026'].sum()
-    total_row['AGL_Volume_2026']   = res['AGL_Volume_2026'].sum()
-    total_row['PDM_2026'] = (total_row['AGL_Volume_2026'] / total_row['Total_Marche_2026'] * 100) if total_row['Total_Marche_2026'] > 0 else 0
+    total_row[f'Total_Marche_{cur_year}'] = res[f'Total_Marche_{cur_year}'].sum()
+    total_row[f'AGL_Volume_{cur_year}']   = res[f'AGL_Volume_{cur_year}'].sum()
+    total_row[f'PDM_{cur_year}'] = (total_row[f'AGL_Volume_{cur_year}'] / total_row[f'Total_Marche_{cur_year}'] * 100) if total_row[f'Total_Marche_{cur_year}'] > 0 else 0
 
-    if 'Total_Marche_2025' in res.columns:
-        total_row['Total_Marche_2025'] = res['Total_Marche_2025'].sum()
-        total_row['AGL_Volume_2025']   = res['AGL_Volume_2025'].sum()
-        total_row['PDM_2025'] = (total_row['AGL_Volume_2025'] / total_row['Total_Marche_2025'] * 100) if total_row['Total_Marche_2025'] > 0 else 0
+    if f'Total_Marche_{prev_year}' in res.columns:
+        total_row[f'Total_Marche_{prev_year}'] = res[f'Total_Marche_{prev_year}'].sum()
+        total_row[f'AGL_Volume_{prev_year}']   = res[f'AGL_Volume_{prev_year}'].sum()
+        total_row[f'PDM_{prev_year}'] = (total_row[f'AGL_Volume_{prev_year}'] / total_row[f'Total_Marche_{prev_year}'] * 100) if total_row[f'Total_Marche_{prev_year}'] > 0 else 0
         total_row['Variation_Volume']  = res['Variation_Volume'].sum()
 
     res = pd.concat([pd.DataFrame([total_row]), res], ignore_index=True)
 
-    new_cols = ['CLIENTS', f'MARCHÉ {label_periode.upper()} 2026', f'AGL {unit_upper} 2026', 'PDM 2026']
-    if 'Total_Marche_2025' in df.columns:
-        new_cols += [f'MARCHÉ {label_periode.upper()} 2025', f'AGL {unit_upper} 2025', 'PDM 2025', 'VARIATION']
+    new_cols = ['CLIENTS', f'MARCHÉ {label_periode.upper()} {cur_year}', f'AGL {unit_upper} {cur_year}', f'PDM {cur_year}']
+    if f'Total_Marche_{prev_year}' in df.columns:
+        new_cols += [f'MARCHÉ {label_periode.upper()} {prev_year}', f'AGL {unit_upper} {prev_year}', f'PDM {prev_year}', 'VARIATION']
     res.columns = new_cols
-
     # Assurer les types de colonnes pour compatibilité pyarrow
     res['CLIENTS'] = res['CLIENTS'].astype(str)
     for col in res.columns:
@@ -645,9 +659,12 @@ def format_view_table(df, label_periode, client_col):
     return res
 
 def format_delta_html(val):
+    def _fmt_space(value):
+        return f"{abs(int(value)):,}".replace(",", " ")
+
     unit = st.session_state.get('metric_unit', 'Teus')
-    if val > 0: return f'<span class="val-pos">+ {int(val):,} {unit}</span>'
-    if val < 0: return f'<span class="val-neg">- {abs(int(val)):,} {unit}</span>'
+    if val > 0: return f'<span class="val-pos">+ {_fmt_space(val)} {unit}</span>'
+    if val < 0: return f'<span class="val-neg">- {_fmt_space(val)} {unit}</span>'
     return f'<span class="val-neu">0 {unit}</span>'
 
 
@@ -1354,6 +1371,50 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         # Fallback: just set text
         shape.text_frame.paragraphs[0].text = new_text
 
+    def replace_period_text(text):
+        """Replace template month/year placeholders with the active report period."""
+        if not text:
+            return text
+
+        month_names = list(MOIS_NUM_TO_NAME.values())
+        month_names_upper = [month.upper() for month in month_names]
+        period_upper = label_periode.upper()
+        period_title = label_periode
+        period_month_upper = period_upper.split()[-1] if period_upper else ''
+        period_month_title = period_title.split()[-1] if period_title else ''
+
+        updated = text
+
+        for month_upper, month_title in zip(month_names_upper, month_names):
+            updated = updated.replace(f'CUMUL A FIN {month_upper}', f'CUMUL A FIN {period_month_upper}')
+            updated = updated.replace(f'Cumul a fin {month_title}', f'Cumul a fin {period_month_title}')
+            updated = updated.replace(f'CUMUL À FIN {month_upper}', f'CUMUL À FIN {period_month_upper}')
+            updated = updated.replace(f'Cumul à fin {month_title}', f'Cumul à fin {period_month_title}')
+
+        for month_upper, month_title in zip(month_names_upper, month_names):
+            updated = updated.replace(f'{month_upper} 2026', f'{period_upper} {current_year}')
+            updated = updated.replace(f'{month_title} 2026', f'{period_title} {current_year}')
+            updated = updated.replace(f'{month_upper} 2025', f'{period_upper} {previous_year}')
+            updated = updated.replace(f'{month_title} 2025', f'{period_title} {previous_year}')
+
+        for month_upper, month_title in zip(month_names_upper, month_names):
+            updated = updated.replace(month_upper, period_upper)
+            updated = updated.replace(month_title, period_title)
+
+        return updated
+
+    def apply_period_text_to_shape(shape):
+        """Recursively replace template period placeholders in text-bearing shapes."""
+        if shape.shape_type == 6:
+            for sub_shape in shape.shapes:
+                apply_period_text_to_shape(sub_shape)
+            return
+
+        if hasattr(shape, 'text') and shape.text:
+            new_text = replace_period_text(shape.text)
+            if new_text != shape.text and hasattr(shape, 'text_frame'):
+                set_textbox_text(shape, new_text)
+
     def fill_synthese_table(slide, comp, metric_unit, label_per, is_single):
         """Fill the 2-row KPI summary table on a Synthese slide."""
         tbl = find_table(slide)
@@ -1414,6 +1475,9 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
 
         merged = pd.merge(comp, tc[[client_col, '1ER_CONC', 'TEUS_CONC']], on=client_col, how='left').fillna(0)
         merged['VOL_CONC'] = merged['Total_Marche_2026'] - merged['AGL_Volume_2026']
+        # Si aucun concurrent exploitable n'est trouvé, affecter le volume de concurrence à NON APURE
+        mask_non_apure = merged['1ER_CONC'].apply(_is_non_apure)
+        merged.loc[mask_non_apure & (merged['TEUS_CONC'] <= 0), 'TEUS_CONC'] = merged.loc[mask_non_apure & (merged['TEUS_CONC'] <= 0), 'VOL_CONC']
         if not is_single and 'AGL_Volume_2025' in merged.columns:
             merged['Variation'] = merged['AGL_Volume_2026'] - merged['AGL_Volume_2025']
             # TOP 20 "en baisse": declining AGL clients sorted by competition volume
@@ -1635,8 +1699,8 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
                 _set_shape_multiline(summary_sh,
                     f"Clients Actifs et Inactifs  {_fmt(total_ai)} {mu}")
                 _set_shape_multiline(detail_sh,
-                    f"{n_actifs:02d} Clients Actifs en 2025        {_fmt(vol_actifs)} {mu}\n"
-                    f"{n_inactifs:02d} Clients Inactifs en 2025      {_fmt(vol_inactifs)} {mu}")
+                    f"{n_actifs:02d} Clients Actifs en {current_year}        {_fmt(vol_actifs)} {mu}\n"
+                    f"{n_inactifs:02d} Clients Inactifs en {current_year}      {_fmt(vol_inactifs)} {mu}")
             else:
                 _set_shape_multiline(summary_sh,
                     f"Autres Clients en Hausse et en Baisse  {_fmt(total_autres)} {mu}")
@@ -1654,13 +1718,17 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
     # ── Main: update template slides with section data ──
     slides = list(out_prs.slides)
 
+    for slide in slides:
+        for sh in slide.shapes:
+            apply_period_text_to_shape(sh)
+
     # Update cover slide title (slide 1) with period using global current_year
     s1 = slides[0]
     for sh in s1.shapes:
-        if hasattr(sh, 'text') and 'JANVIER 2026' in sh.text.upper():
-            set_textbox_text(sh, sh.text.replace('JANVIER 2026', f'{label_periode.upper()} {current_year}').replace('Janvier 2026', f'{label_periode} {current_year}'))
-        if hasattr(sh, 'text') and 'CUMUL A FIN JANVIER' in sh.text.upper():
-            set_textbox_text(sh, sh.text.replace('JANVIER', label_periode.upper().split()[-1] if ' ' in label_periode else label_periode.upper()))
+        if hasattr(sh, 'text') and sh.text:
+            new_text = replace_period_text(sh.text)
+            if new_text != sh.text:
+                set_textbox_text(sh, new_text)
 
     # Process each section
     section_map = {
@@ -1686,12 +1754,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             # Update title
             title_sh = find_textbox_containing(synth_slide, 'SYNTHESE')
             if title_sh:
-                old_text = title_sh.text
-                # Replace month reference
-                new_title = old_text
-                for m in ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN',
-                           'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE']:
-                    new_title = new_title.replace(m, label_periode.upper().split()[-1] if ' ' in label_periode else label_periode.upper())
+                new_title = replace_period_text(title_sh.text)
                 set_textbox_text(title_sh, new_title)
             # Fill KPI table
             fill_synthese_table(synth_slide, comp, mu, label_periode, sec_single)
@@ -1706,11 +1769,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             # Update title
             title_sh = find_textbox_containing(top20_slide, 'TOP 20')
             if title_sh:
-                old_text = title_sh.text
-                for m in ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN',
-                           'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE']:
-                    old_text = old_text.replace(m, label_periode.upper().split()[-1] if ' ' in label_periode else label_periode.upper())
-                set_textbox_text(title_sh, old_text)
+                set_textbox_text(title_sh, replace_period_text(title_sh.text))
             # Fill data table
             fill_top20_table(top20_slide, comp, df_cible, ccol, mu, sec_single)
 
@@ -2459,7 +2518,7 @@ if st.session_state.validated:
                 <div class="agl-summary-group">
                     <div class="agl-summary-title"><div class="agl-summary-triangle"></div><span>Clients Actifs et Inactifs {format_delta_html(vol_act_inact)}</span></div>
                     <ul class="agl-summary-list">
-                        <li><b>{len(df_new):02d}</b> Clients Actifs en {current_display_year}{format_delta_html(df_new['Variation_Volume'].sum())}</li>
+                        <li><b>{len(df_new):02d}</b> Clients Actifs en {current_display_year} {format_delta_html(df_new['Variation_Volume'].sum())}</li>
                         <li><b>{len(df_lost):02d}</b> Clients Inactifs en {current_display_year} {format_delta_html(df_lost['Variation_Volume'].sum())}</li>
                     </ul>
                 </div>
@@ -2477,23 +2536,23 @@ if st.session_state.validated:
             col_g, col_d = st.columns(2, gap="large")
             with col_g:
                 st.markdown(f'<div class="agl-section-title">{ICON_UP} PDM ≥ {seuil_pdm}% · CROISSANCE & STABLES</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_100_crois, label_per, client_col), f"{prefix_key}_100c", use_global_names=False)
+                editable_dataframe(format_view_table(df_100_crois, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_100c", use_global_names=False)
                 
                 st.markdown(f'<div class="agl-section-title" style="margin-top:16px">{ICON_UP} NOUVEAUX CLIENTS ACTIFS</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_new, label_per, client_col), f"{prefix_key}_new", use_global_names=False)
+                editable_dataframe(format_view_table(df_new, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_new", use_global_names=False)
                 
                 st.markdown(f'<div class="agl-section-title" style="margin-top:16px">{ICON_UP} AUTRES CLIENTS EN HAUSSE & STABLES</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_aut_crois, label_per, client_col), f"{prefix_key}_autc", use_global_names=False)
+                editable_dataframe(format_view_table(df_aut_crois, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_autc", use_global_names=False)
 
             with col_d:
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn">{ICON_DOWN} PDM ≥ {seuil_pdm}% · DÉCROISSANCE</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_100_baisse, label_per, client_col), f"{prefix_key}_100b", use_global_names=False)
+                editable_dataframe(format_view_table(df_100_baisse, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_100b", use_global_names=False)
                 
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn" style="margin-top:16px">{ICON_DOWN} CLIENTS PERDUS (INACTIFS)</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_lost, label_per, client_col), f"{prefix_key}_lost", use_global_names=False)
+                editable_dataframe(format_view_table(df_lost, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_lost", use_global_names=False)
                 
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn" style="margin-top:16px">{ICON_DOWN} AUTRES CLIENTS EN BAISSE</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_aut_baisse, label_per, client_col), f"{prefix_key}_autb", use_global_names=False)
+                editable_dataframe(format_view_table(df_aut_baisse, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_autb", use_global_names=False)
 
         else: 
             df_100 = comp_df[comp_df['PDM_2026'] >= seuil_pdm].sort_values('AGL_Volume_2026', ascending=False)
@@ -2502,10 +2561,10 @@ if st.session_state.validated:
             col_g, col_d = st.columns(2, gap="large")
             with col_g:
                 st.markdown(f'<div class="agl-section-title">{ICON_UP} CLIENTS PDM ≥ {seuil_pdm}%</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_100, label_per, client_col), f"{prefix_key}_100", use_global_names=False)
+                editable_dataframe(format_view_table(df_100, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_100", use_global_names=False)
             with col_d:
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn">{ICON_DOWN} AUTRES CLIENTS (< {seuil_pdm}%)</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_aut, label_per, client_col), f"{prefix_key}_aut", use_global_names=False)
+                editable_dataframe(format_view_table(df_aut, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_aut", use_global_names=False)
 
     # ─────────────────────────────────────────────
     #  EXÉCUTION DES ONGLETS
@@ -2583,6 +2642,7 @@ if st.session_state.validated:
             st.info("Données insuffisantes pour tracer l'évolution temporelle.")
 
     with tab_conc:
+        
         df_cible_current = df_cible[df_cible['Année escale'] == current_display_year]
         if not df_cible_current.empty:
             df_comp = df_cible_current.groupby([client_col, 'Transitaire'])['NOMBRE_TEU'].sum().reset_index()
@@ -2593,13 +2653,16 @@ if st.session_state.validated:
 
             comp = pd.merge(res_2026, top_comp[[client_col, '1ER CONCURRENT EN 2026', 'TEUS 1ER CONCURRENT']], on=client_col, how='left')
             comp['VOL. CONCURRENCE'] = comp['Total_Marche_2026'] - comp['AGL_Volume_2026']
+            # Si aucun concurrent exploitable n'est trouvé, affecter le volume de concurrence à NON APURE
+            mask_non_apure = comp['1ER CONCURRENT EN 2026'].apply(_is_non_apure)
+            comp.loc[mask_non_apure & (comp['TEUS 1ER CONCURRENT'].fillna(0) <= 0), 'TEUS 1ER CONCURRENT'] = comp.loc[mask_non_apure & (comp['TEUS 1ER CONCURRENT'].fillna(0) <= 0), 'VOL. CONCURRENCE']
             comp['PDM CONCURRENT']    = (comp['TEUS 1ER CONCURRENT'] / comp['Total_Marche_2026']) * 100
             comp = comp.fillna(0)
 
             # Ajouter variation AGL (2026 vs 2025) pour identifier clients en baisse
-            comp = pd.merge(comp, res_2025[[client_col, 'AGL_Volume_2025']], on=client_col, how='left')
-            comp['AGL_Volume_2025'] = comp['AGL_Volume_2025'].fillna(0)
-            comp['Variation_AGL'] = comp['AGL_Volume_2026'] - comp['AGL_Volume_2025']
+            comp = pd.merge(comp, res_2025[[client_col, f'AGL_Volume_{current_display_year-1}']], on=client_col, how='left')
+            comp[f'AGL_Volume_{current_display_year-1}'] = comp[f'AGL_Volume_{current_display_year-1}'].fillna(0)
+            comp['Variation_AGL'] = comp[f'AGL_Volume_{current_display_year}'] - comp[f'AGL_Volume_{current_display_year-1}']
 
             # Exclure clients Etat/mines de la concurrence
             comp = comp[~comp[client_col].apply(_is_excluded_client)]
@@ -2623,7 +2686,13 @@ if st.session_state.validated:
                 disp.columns = ['CLIENTS', col_marche, col_agl, 'PDM AGL', 'VOL. CONCURRENCE', '1ER CONCURRENT 2026', f'{unit_upper_conc} CONCURRENT', 'PDM CONCURRENT', col_var]
                 
                 # Convertir en string AVANT le remplacement pour éviter les types mixtes
-                disp['1ER CONCURRENT 2026'] = disp['1ER CONCURRENT 2026'].astype(str).replace('0', 'NON APURE').replace('0.0', 'NON APURE').replace('', 'NON APURE')
+                disp['1ER CONCURRENT 2026'] = (
+                    disp['1ER CONCURRENT 2026']
+                    .astype(str)
+                    .replace('0', 'NON APURE')
+                    .replace('0.0', 'NON APURE')
+                    .replace('', 'NON APURE')
+                )
                 
                 for col in disp.columns:
                     if any(k in col for k in [unit_upper_conc, 'VOL', 'MARCHÉ', 'PDM', 'VAR']):
@@ -2631,8 +2700,65 @@ if st.session_state.validated:
 
                 st.markdown("<hr style='margin: 10px 0 20px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
                 editable_dataframe(disp, "concurrence", has_total_row=False)
+        
         else:
             st.info("Aucune donnée d'analyse concurrentielle pour cette période.")
+                # ------------------------------------------------------------
+        # Gestion de la liste noire des clients (ajout / suppression)
+        # ------------------------------------------------------------
+        st.markdown("---")
+        st.markdown("###  CLIENTS NON DESIRABLES : GESTION DE LA LISTE NOIRE")
+
+        # Récupérer tous les clients uniques du tableau affiché (ou de l'ensemble des données)
+        # On utilise `comp_filtered` (déjà filtré sur baisse+PDM) pour limiter aux clients pertinents,
+        # mais on peut aussi utiliser `comparison` pour avoir toute la base.
+        # Ici on prend `comp_filtered` car c'est le périmètre visible dans le tableau.
+        all_clients = sorted(comp_filtered[client_col].unique()) if not comp_filtered.empty else []
+        if not all_clients:
+            st.info("Aucun client disponible pour la selection (aucun client en baisse avec PDM <= 50%).")
+        else:
+            with st.expander("Selectionner des clients a exclure des analyses", expanded=False):
+                # Multiselect basé sur la liste des clients du tableau
+                selected_for_exclusion = st.multiselect(
+                    "Choisissez les clients a ajouter a la liste noire",
+                    options=all_clients,
+                    default=[],
+                    key="exclusion_multiselect"
+                )
+                col_btn1, col_btn2, col_btn3 = st.columns(3)
+                with col_btn1:
+                    if st.button("Ajouter a la liste noire", type="primary"):
+                        if selected_for_exclusion:
+                            add_excluded_clients(selected_for_exclusion)
+                            st.success(f"{len(selected_for_exclusion)} client(s) ajoute(s) a la liste noire.")
+                            st.rerun()
+                        else:
+                            st.warning("Aucun client selectionne.")
+                with col_btn2:
+                    # Afficher la liste noire actuelle
+                    current_blacklist = load_excluded_clients()
+                    if current_blacklist:
+                        st.info(f"Liste noire actuelle ({len(current_blacklist)} clients) : {', '.join(current_blacklist[:10])}{'...' if len(current_blacklist)>10 else ''}")
+                    else:
+                        st.info("Aucun client exclu pour l'instant.")
+                with col_btn3:
+                    if st.button("Vider la liste noire", type="secondary"):
+                        save_excluded_clients([])
+                        st.success("Liste noire videe.")
+                        st.rerun()
+
+            # Option pour supprimer des clients specifiques de la liste noire
+            current_list = load_excluded_clients()
+            if current_list:
+                with st.expander("Supprimer des clients de la liste noire", expanded=False):
+                    to_remove = st.multiselect("Clients a retirer", options=current_list, key="remove_multiselect")
+                    if st.button("Retirer de la liste noire"):
+                        if to_remove:
+                            remove_excluded_clients(to_remove)
+                            st.success(f"{len(to_remove)} client(s) retire(s).")
+                            st.rerun()
+                        else:
+                            st.warning("Selectionnez au moins un client.")
 
     with tab_raw:
         editable_dataframe(df_all, "raw_data", has_total_row=False)
