@@ -229,6 +229,45 @@ def _is_excluded_client(name):
         if kw in up:
             return True
     return False
+
+def _is_non_apure(value):
+    """Check if a value is NON APURE (missing/empty/N/A data)."""
+    if pd.isna(value):
+        return True
+    s = str(value).strip().upper()
+    return s in ('', '0', '0.0', 'NAN', 'N/A', 'NON APURE', 'NONE')
+
+def _select_primary_competitor_rows(df_comp, client_col, trans_col='Transitaire', volume_col='NOMBRE_TEU'):
+    """Select the main competitor per client, preferring values other than NON APURE.
+
+    If all competitors are NON APURE for a client, keep the highest-volume row and label it NON APURE.
+    """
+    if df_comp.empty:
+        return pd.DataFrame(columns=[client_col, trans_col, volume_col])
+
+    selected_rows = []
+    for client in df_comp[client_col].dropna().unique():
+        client_data = df_comp[df_comp[client_col] == client].sort_values(volume_col, ascending=False)
+        if client_data.empty:
+            continue
+
+        chosen_row = None
+        for _, row in client_data.iterrows():
+            if not _is_non_apure(row[trans_col]):
+                chosen_row = row.copy()
+                break
+
+        if chosen_row is None:
+            chosen_row = client_data.iloc[0].copy()
+            chosen_row[trans_col] = 'NON APURE'
+
+        selected_rows.append(chosen_row)
+
+    if not selected_rows:
+        return pd.DataFrame(columns=[client_col, trans_col, volume_col])
+
+    return pd.DataFrame(selected_rows)
+
 EXPECTED_COLS = {
     'Transitaire':    ['TRANSITAIRE', 'FORWARDER', 'CONSIGNATAIRE'],
     'NOMBRE_TEU':     ['NOMBRE_TEU', 'VOLUME', 'TEUS', 'TEU', 'QTE'],
@@ -535,6 +574,8 @@ def editable_dataframe(df, key_prefix, has_total_row=True, use_global_names=Fals
         df_final = apply_column_names(df_display, label_periode)
     else:
         df_final = df_display
+
+    df_final.index = range(1, len(df_final) + 1)
     
     # Nettoyage des types pour compatibilité pyarrow
     for col in df_final.columns:
@@ -1259,6 +1300,15 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
     from pptx.util import Pt
     from lxml import etree
 
+    # Déterminer l'année courante à partir des données
+    all_years = set()
+    for sec_data in sections_data.values():
+        df_cible = sec_data.get('df_cible', pd.DataFrame())
+        if 'Année escale' in df_cible.columns:
+            all_years.update(df_cible['Année escale'].dropna().unique())
+    current_year = int(max(all_years)) if all_years else 2026
+    previous_year = current_year - 1
+
     template_path = TEMPLATE_FILE
     if not os.path.isfile(template_path):
         available = [f for f in os.listdir(os.path.dirname(template_path)) if f.endswith('.pptx')]
@@ -1349,7 +1399,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             return
         unit_up = metric_unit.upper()
         # Build top 20 data (biggest drop in AGL volume or biggest market)
-        df_c26 = df_cible[df_cible['Année escale'] == 2026]
+        df_c26 = df_cible[df_cible['Année escale'] == current_year]
         if df_c26.empty:
             return
         # Get concurrence data
@@ -1358,8 +1408,9 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         if do.empty:
             tc = pd.DataFrame(columns=[client_col, '1ER_CONC', 'TEUS_CONC'])
         else:
-            idx_max = do.groupby(client_col)['NOMBRE_TEU'].idxmax()
-            tc = do.loc[idx_max.dropna()].rename(columns={'Transitaire': '1ER_CONC', 'NOMBRE_TEU': 'TEUS_CONC'})
+            tc = _select_primary_competitor_rows(do, client_col).rename(
+                columns={'Transitaire': '1ER_CONC', 'NOMBRE_TEU': 'TEUS_CONC'}
+            )
 
         merged = pd.merge(comp, tc[[client_col, '1ER_CONC', 'TEUS_CONC']], on=client_col, how='left').fillna(0)
         merged['VOL_CONC'] = merged['Total_Marche_2026'] - merged['AGL_Volume_2026']
@@ -1382,7 +1433,8 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             pdm = f"{round(ta/tm*100)}%" if tm > 0 else "0%"
             vc = int(row['VOL_CONC'])
             conc_name = str(row.get('1ER_CONC', ''))
-            if conc_name in ('0', '0.0', ''): conc_name = ''
+            if conc_name in ('0', '0.0', ''):
+                conc_name = 'NON APURE'
             tc_val = int(row.get('TEUS_CONC', 0))
             pdm_c = f"{round(tc_val/tm*100)}%" if tm > 0 and tc_val > 0 else "0%"
 
@@ -1596,17 +1648,17 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         for sh in slide.shapes:
             if hasattr(sh, 'text') and 'travaillé en' in sh.text.lower():
                 _set_shape_multiline(sh,
-                    "Actifs   = travaillé en 2026 et pas en 2025.\nInactifs = pas travaillé en 2026 et travaillé en 2025")
+                    f"Actifs   = travaillé en {current_year} et pas en {previous_year}.\nInactifs = pas travaillé en {current_year} et travaillé en {previous_year}")
                 break
 
     # ── Main: update template slides with section data ──
     slides = list(out_prs.slides)
 
-    # Update cover slide title (slide 1) with period
+    # Update cover slide title (slide 1) with period using global current_year
     s1 = slides[0]
     for sh in s1.shapes:
         if hasattr(sh, 'text') and 'JANVIER 2026' in sh.text.upper():
-            set_textbox_text(sh, sh.text.replace('JANVIER 2026', f'{label_periode.upper()} 2026').replace('Janvier 2026', f'{label_periode} 2026'))
+            set_textbox_text(sh, sh.text.replace('JANVIER 2026', f'{label_periode.upper()} {current_year}').replace('Janvier 2026', f'{label_periode} {current_year}'))
         if hasattr(sh, 'text') and 'CUMUL A FIN JANVIER' in sh.text.upper():
             set_textbox_text(sh, sh.text.replace('JANVIER', label_periode.upper().split()[-1] if ' ' in label_periode else label_periode.upper()))
 
@@ -1694,12 +1746,16 @@ if st.session_state.validated:
     client_col = st.session_state.client_col
     is_single_month = st.session_state.is_single_month
 
+    # Extraire les années dynamiquement pour tout le dashboard
+    dashboard_years = sorted(df_source['Année escale'].dropna().unique()) if 'Année escale' in df_source.columns else []
+    current_display_year = int(max(dashboard_years)) if dashboard_years else 2026
+    previous_display_year = current_display_year - 1
+
     mois_dict_ref = {'Janvier':1,'Février':2,'Mars':3,'Avril':4,'Mai':5,'Juin':6,'Juillet':7,'Août':8,'Septembre':9,'Octobre':10,'Novembre':11,'Décembre':12}
     mois_presents_tries = sorted(df_source['Mois escale'].dropna().unique(), key=lambda x: mois_dict_ref.get(x, 99))
 
     with st.expander("PARAMÈTRES ET FILTRES GLOBAUX", expanded=True):
-        is_export = (client_col == 'Chargeur')
-        has_prise_charge = is_export and 'Pays de prise en charge' in df_source.columns
+        has_prise_charge = 'Pays de prise en charge' in df_source.columns
         filter_cols = st.columns(5 if has_prise_charge else 4)
         with filter_cols[0]: analyse_type = st.radio("TYPE D'ANALYSE", ["Mois Spécifique", "Cumul (YTD)"])
         with filter_cols[1]: mois_cible = st.selectbox("PÉRIODE ANALYSÉE", mois_presents_tries)
@@ -1716,7 +1772,7 @@ if st.session_state.validated:
             if geo_col_dash in df_source.columns:
                 pays_prise_charge = st.multiselect(geo_label, df_source[geo_col_dash].dropna().unique())
             else: pays_prise_charge = []
-        # Extra: Pays de livraison filter for Export
+        # Extra: Pays de livraison filter when prise en charge is available
         pays_livraison_extra = []
         if has_prise_charge:
             with filter_cols[3]:
@@ -1747,9 +1803,14 @@ if st.session_state.validated:
         df_cible = df_all[df_all['Mois escale'] == mois_cible]
         label_periode = mois_cible
 
-    res_2026 = get_stats_annee(df_cible[df_cible['Année escale'] == 2026], 2026, client_col)
+    # Extraire les années dynamiquement pour le filtrage des données
+    df_years = sorted(df_cible['Année escale'].dropna().unique())
+    df_current_year = int(max(df_years)) if df_years else 2026
+    df_previous_year = df_current_year - 1
+    
+    res_2026 = get_stats_annee(df_cible[df_cible['Année escale'] == df_current_year], 2026, client_col)
     if not is_single_month:
-        res_2025 = get_stats_annee(df_cible[df_cible['Année escale'] == 2025], 2025, client_col)
+        res_2025 = get_stats_annee(df_cible[df_cible['Année escale'] == df_previous_year], 2025, client_col)
         comparison = pd.merge(res_2025, res_2026, on=client_col, how='outer').fillna(0)
     else:
         comparison = res_2026.copy()
@@ -1921,9 +1982,14 @@ if st.session_state.validated:
                                 _log(f"{sec_name} : aucune donnee pour {auto_label} - section ignoree", "warn")
                                 continue
 
-                            r_res26 = get_stats_annee(r_cible[r_cible['Année escale'] == 2026], 2026, r_ccol)
+                            # Extraire les années dynamiquement pour le filtrage des données
+                            r_years = sorted(r_cible['Année escale'].dropna().unique())
+                            r_current_year = int(max(r_years)) if r_years else 2026
+                            r_previous_year = r_current_year - 1
+                            
+                            r_res26 = get_stats_annee(r_cible[r_cible['Année escale'] == r_current_year], 2026, r_ccol)
                             if not r_single:
-                                r_res25 = get_stats_annee(r_cible[r_cible['Année escale'] == 2025], 2025, r_ccol)
+                                r_res25 = get_stats_annee(r_cible[r_cible['Année escale'] == r_previous_year], 2025, r_ccol)
                                 r_comp = pd.merge(r_res25, r_res26, on=r_ccol, how='outer').fillna(0)
                             else:
                                 r_comp = r_res26.copy()
@@ -1982,10 +2048,13 @@ if st.session_state.validated:
     if st.session_state.get('pptx_data'):
         col_dl, _ = st.columns([1, 5])
         with col_dl:
+            # Déterminer l'année dynamiquement pour le nom du fichier
+            years_in_data = sorted(df_source['Année escale'].dropna().unique()) if 'Année escale' in df_source.columns else [2026]
+            report_year = int(max(years_in_data)) if years_in_data else 2026
             st.download_button(
                 label="TÉLÉCHARGER LE RAPPORT",
                 data=st.session_state['pptx_data'],
-                file_name=f"AGL_Rapport_{label_periode.replace(' ', '_')}_2026.pptx",
+                file_name=f"AGL_Rapport_{label_periode.replace(' ', '_')}_{report_year}.pptx",
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                 type="primary"
             )
@@ -2338,6 +2407,9 @@ if st.session_state.validated:
         col_ctrl1, col_ctrl2 = st.columns(2)
         with col_ctrl1:
             seuil_pdm = st.slider("SEUIL DE PDM (%) POUR LE RÉSUMÉ :", min_value=10, max_value=100, value=95, step=1, key=f"slider_{prefix_key}")
+
+        years_present = sorted(df_source['Année escale'].dropna().unique()) if 'Année escale' in df_source.columns else []
+        current_display_year = int(max(years_present)) if years_present else 2026
         
         mode_nouveaux = "Stricts (absents du marché l'année précédente)"
         if not is_single:
@@ -2380,22 +2452,22 @@ if st.session_state.validated:
                 <div class="agl-summary-group">
                     <div class="agl-summary-title"><div class="agl-summary-triangle"></div><span>{len(df_100_crois) + len(df_100_baisse)} Clients à ≥ {seuil_pdm}% de PDM {format_delta_html(vol_100)}</span></div>
                     <ul class="agl-summary-list">
-                        <li><b>{len(df_100_crois):02d}</b> Croissance ou Stabilité {format_delta_html(df_100_crois['Variation_Volume'].sum())}</li>
-                        <li><b>{len(df_100_baisse):02d}</b> Baisse {format_delta_html(df_100_baisse['Variation_Volume'].sum())}</li>
+                        <li><b>{len(df_100_crois):02d}</b> Clients qui ont une croissance {format_delta_html(df_100_crois['Variation_Volume'].sum())}</li>
+                        <li><b>{len(df_100_baisse):02d}</b> Clients qui ont une baisse {format_delta_html(df_100_baisse['Variation_Volume'].sum())}</li>
                     </ul>
                 </div>
                 <div class="agl-summary-group">
                     <div class="agl-summary-title"><div class="agl-summary-triangle"></div><span>Clients Actifs et Inactifs {format_delta_html(vol_act_inact)}</span></div>
                     <ul class="agl-summary-list">
-                        <li><b>{len(df_new):02d}</b> Nouveaux Clients 2026 {format_delta_html(df_new['Variation_Volume'].sum())}</li>
-                        <li><b>{len(df_lost):02d}</b> Clients Inactifs en 2026 {format_delta_html(df_lost['Variation_Volume'].sum())}</li>
+                        <li><b>{len(df_new):02d}</b> Clients Actifs en {current_display_year}{format_delta_html(df_new['Variation_Volume'].sum())}</li>
+                        <li><b>{len(df_lost):02d}</b> Clients Inactifs en {current_display_year} {format_delta_html(df_lost['Variation_Volume'].sum())}</li>
                     </ul>
                 </div>
                 <div class="agl-summary-group" style="margin-bottom:0;">
                     <div class="agl-summary-title"><div class="agl-summary-triangle"></div><span>Autres Clients {format_delta_html(vol_aut)}</span></div>
                     <ul class="agl-summary-list">
-                        <li><b>{len(df_aut_crois):02d}</b> Hausse ou Stabilité {format_delta_html(df_aut_crois['Variation_Volume'].sum())}</li>
-                        <li><b>{len(df_aut_baisse):02d}</b> Baisse {format_delta_html(df_aut_baisse['Variation_Volume'].sum())}</li>
+                        <li><b>{len(df_aut_crois):02d}</b> Clients en hausse  {format_delta_html(df_aut_crois['Variation_Volume'].sum())}</li>
+                        <li><b>{len(df_aut_baisse):02d}</b> Clients en baisse {format_delta_html(df_aut_baisse['Variation_Volume'].sum())}</li>
                     </ul>
                 </div>
             </div>
@@ -2511,12 +2583,13 @@ if st.session_state.validated:
             st.info("Données insuffisantes pour tracer l'évolution temporelle.")
 
     with tab_conc:
-        df_cible_2026 = df_cible[df_cible['Année escale'] == 2026]
-        if not df_cible_2026.empty:
-            df_comp = df_cible_2026.groupby([client_col, 'Transitaire'])['NOMBRE_TEU'].sum().reset_index()
+        df_cible_current = df_cible[df_cible['Année escale'] == current_display_year]
+        if not df_cible_current.empty:
+            df_comp = df_cible_current.groupby([client_col, 'Transitaire'])['NOMBRE_TEU'].sum().reset_index()
             df_others = df_comp[~df_comp['Transitaire'].astype(str).str.contains('AFRICA GLOBAL LOGISTICS', case=False, na=False)]
-            idx = df_others.groupby(client_col)['NOMBRE_TEU'].idxmax()
-            top_comp = df_others.loc[idx.dropna()].rename(columns={'Transitaire': '1ER CONCURRENT EN 2026', 'NOMBRE_TEU': 'TEUS 1ER CONCURRENT'})
+            top_comp = _select_primary_competitor_rows(df_others, client_col).rename(
+                columns={'Transitaire': '1ER CONCURRENT EN 2026', 'NOMBRE_TEU': 'TEUS 1ER CONCURRENT'}
+            )
 
             comp = pd.merge(res_2026, top_comp[[client_col, '1ER CONCURRENT EN 2026', 'TEUS 1ER CONCURRENT']], on=client_col, how='left')
             comp['VOL. CONCURRENCE'] = comp['Total_Marche_2026'] - comp['AGL_Volume_2026']
@@ -2550,7 +2623,7 @@ if st.session_state.validated:
                 disp.columns = ['CLIENTS', col_marche, col_agl, 'PDM AGL', 'VOL. CONCURRENCE', '1ER CONCURRENT 2026', f'{unit_upper_conc} CONCURRENT', 'PDM CONCURRENT', col_var]
                 
                 # Convertir en string AVANT le remplacement pour éviter les types mixtes
-                disp['1ER CONCURRENT 2026'] = disp['1ER CONCURRENT 2026'].astype(str).replace('0', 'Aucun').replace('0.0', 'Aucun')
+                disp['1ER CONCURRENT 2026'] = disp['1ER CONCURRENT 2026'].astype(str).replace('0', 'NON APURE').replace('0.0', 'NON APURE').replace('', 'NON APURE')
                 
                 for col in disp.columns:
                     if any(k in col for k in [unit_upper_conc, 'VOL', 'MARCHÉ', 'PDM', 'VAR']):
