@@ -9,8 +9,7 @@ __pycache__/
 *.pyc
 *.pyo
 #Confidential files
-ALERTE CLIENTS - AGL CI JANVIER 2026.pptx
-DATA/
+DATA/REPORT/
 # Streamlit cache (keep config)
 .streamlit/cache/
 .streamlit/credentials.toml
