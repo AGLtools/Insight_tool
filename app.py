@@ -789,7 +789,7 @@ elif not uploaded_file:
 #  16  = Fonds de Commerce Import Aérien
 
 TEMPLATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             'DATA', 'ALERTE CLIENTS - AGL CI JANVIER 2026.pptx')
+                             'DATA', 'template.pptx')
 
 # Section map: name -> (separator_idx, synthese_idx, top20_idx, detail_idx, fonds_idx)
 SECTION_TEMPLATE_MAP = {

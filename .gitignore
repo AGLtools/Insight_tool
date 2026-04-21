@@ -11,7 +11,7 @@ __pycache__/
 *.pyc
 *.pyo
 #Confidential files
-DATA/REPORT/
+DATA/
 # Streamlit cache (keep config)
 .streamlit/cache/
 .streamlit/credentials.toml
@@ -26,6 +26,8 @@ desktop.ini
 # Temp files
 *.tmp
 ~$*
+#Unused files
+VENV_SETUP_README.md
 
 # Version locale
 .current_version
