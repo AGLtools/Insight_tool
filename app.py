@@ -17,8 +17,8 @@ import io
 # Fichier cache pour les noms de colonnes personnalisés
 COLUMN_NAMES_CACHE_FILE = os.path.join(os.path.dirname(__file__), '.column_names_cache.json')
 EXCLUDED_CLIENTS_FILE = os.path.join(os.path.dirname(__file__), 'excluded_clients.json')
+
 def load_column_names_cache():
-    """Charge les noms de colonnes personnalisés depuis le fichier cache."""
     if os.path.exists(COLUMN_NAMES_CACHE_FILE):
         try:
             with open(COLUMN_NAMES_CACHE_FILE, 'r', encoding='utf-8') as f:
@@ -28,7 +28,6 @@ def load_column_names_cache():
     return {}
 
 def save_column_names_cache(cache_data):
-    """Sauvegarde les noms de colonnes personnalisés dans le fichier cache."""
     try:
         with open(COLUMN_NAMES_CACHE_FILE, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, ensure_ascii=False, indent=2)
@@ -36,7 +35,6 @@ def save_column_names_cache(cache_data):
         pass
 
 def clear_column_names_cache():
-    """Supprime le fichier cache des noms de colonnes."""
     if os.path.exists(COLUMN_NAMES_CACHE_FILE):
         try:
             os.remove(COLUMN_NAMES_CACHE_FILE)
@@ -52,20 +50,14 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-# Cacher menu + footer + forcer le mode clair
 st.markdown("""
 <style>
-/* Cacher complètement le menu natif Streamlit */
 #MainMenu {display: none !important;}
 footer {display: none !important;}
 header[data-testid="stHeader"] {display: none !important;}
 [data-testid="stToolbar"] {display: none !important;}
 button[kind="header"] {display: none !important;}
-
-/* Forcer le mode clair (override du dark mode natif) */
-:root {
-  color-scheme: light !important;
-}
+:root { color-scheme: light !important; }
 html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stAppViewBlockContainer"] {
   background-color: #F0F3F8 !important;
   color: #1a2840 !important;
@@ -73,23 +65,10 @@ html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stAppViewB
 </style>
 """, unsafe_allow_html=True)
 
-# ── SVG Icons (STRICTEMENT SANS EMOJIS) ────────────────────────────────────────
 ICON_UP      = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1f77b4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>'
 ICON_DOWN    = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>'
 ICON_SETTINGS= '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M16.95 16.95l1.41 1.41M4.93 4.93l1.41 1.41M7.05 16.95l-1.41 1.41M21 12h-3M6 12H3M12 3V6m0 12v3"/></svg>'
 
-AGL_LOGO_SVG = """
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 80" width="180">
-  <ellipse cx="110" cy="18" rx="16" ry="11" fill="none" stroke="#E5A823" stroke-width="2"/>
-  <ellipse cx="110" cy="18" rx="7" ry="11" fill="none" stroke="#E5A823" stroke-width="1.2"/>
-  <line x1="94" y1="18" x2="126" y2="18" stroke="#E5A823" stroke-width="1.2"/>
-  <path d="M109 10 c-1 0-3 1-3 3 s1 4 0 6 s2 3 3 2 s2-3 3-2 s1-4 0-6 s-2-3-3-3z" fill="#E5A823" opacity="0.7"/>
-  <text x="110" y="52" font-family="Georgia, serif" font-size="26" font-weight="700" fill="#E5A823" text-anchor="middle" letter-spacing="6">AGL</text>
-  <text x="110" y="66" font-family="'Trebuchet MS', sans-serif" font-size="7.5" fill="#E5A823" text-anchor="middle" letter-spacing="2.5">AFRICA GLOBAL LOGISTICS</text>
-</svg>
-"""
-
-# BASE CSS
 st.markdown(f"""
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap');
@@ -98,7 +77,6 @@ st.markdown(f"""
   header[data-testid="stHeader"] {{ background-color: transparent !important; }}
   .block-container {{ padding: 0 2rem 2rem 2rem !important; max-width: 100% !important; }}
 
-  /* Sidebar - force always visible */
   section[data-testid="stSidebar"] {{ background: linear-gradient(180deg, #001f4d 0%, #002d6e 60%, #003380 100%) !important; border-right: 1px solid rgba(229,168,35,0.2); min-width: 300px !important; width: 300px !important; transform: none !important; position: relative !important; display: flex !important; }}
   section[data-testid="stSidebar"] > div:first-child {{ width: 300px !important; }}
   section[data-testid="stSidebar"][aria-expanded="false"] {{ min-width: 300px !important; width: 300px !important; transform: none !important; margin-left: 0 !important; display: flex !important; }}
@@ -110,7 +88,6 @@ st.markdown(f"""
   [data-testid="stSidebarNavCollapseIcon"] {{ display: none !important; }}
   section[data-testid="stSidebar"] button[kind="headerNoPadding"] {{ display: none !important; }}
   section[data-testid="stSidebar"] [data-testid="stBaseButton-headerNoPadding"] {{ display: none !important; }}
-  /* File uploader - OR AGL box, Bleu AGL text */
   section[data-testid="stSidebar"] [data-testid="stFileUploader"] {{ background: #E5A823 !important; border: 2px solid #E5A823 !important; border-radius: 8px !important; padding: 12px !important; box-shadow: 0 4px 12px rgba(229,168,35,0.25); }}
   section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] {{ background: #E5A823 !important; border: 2px dashed #001f4d !important; }}
   section[data-testid="stSidebar"] [data-testid="stFileUploader"] small,
@@ -120,37 +97,30 @@ st.markdown(f"""
   section[data-testid="stSidebar"] [data-testid="stFileUploader"] div {{ color: #001f4d !important; font-size: 0.85rem !important; font-weight: 500 !important; }}
   section[data-testid="stSidebar"] [data-testid="stFileUploader"] button {{ background: #001f4d !important; color: #E5A823 !important; font-weight: 600 !important; border: none !important; border-radius: 6px !important; }}
   section[data-testid="stSidebar"] [data-testid="stFileUploader"] button:hover {{ background: #002d6e !important; color: #ffffff !important; }}
-  /* Sidebar buttons (Purger etc.) */
   section[data-testid="stSidebar"] .stButton button {{ background: rgba(229,168,35,0.15) !important; color: #E5A823 !important; border: 1px solid rgba(229,168,35,0.4) !important; font-weight: 600 !important; border-radius: 6px !important; }}
   section[data-testid="stSidebar"] .stButton button:hover {{ background: rgba(229,168,35,0.3) !important; color: #ffffff !important; }}
-  
-  /* Top bar */
+
   .agl-topbar {{ background: linear-gradient(135deg, #001f4d 0%, #002d6e 100%); border-radius: 12px; padding: 24px 32px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,31,77,0.1); border: 1px solid rgba(229,168,35,0.15); }}
   .agl-topbar-title {{ font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; font-weight: 700; color: #ffffff; line-height: 1.2; }}
   .agl-topbar-subtitle {{ font-size: 0.8rem; color: rgba(229,168,35,0.85); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 4px; font-weight: 500; }}
-  
+
   .step-header {{ background: #ffffff; padding: 12px 18px; border-left: 4px solid #E5A823; border-radius: 4px; margin: 20px 0 16px 0; font-weight: 600; color: #001f4d; font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid #e2e8f0; }}
-  
-  /* Log box */
+
   .log-box {{ background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: #1a2840; }}
   .log-box-ok {{ border-left: 4px solid #34d399; }}
   .log-box-err {{ border-left: 4px solid #ef4444; color: #ef4444; font-weight: 500; }}
 
-  /* Tabs */
   .stTabs [data-baseweb="tab-list"] {{ gap: 4px; background: transparent; padding: 0; border-bottom: 2px solid #e2e8f0 !important; margin-bottom: 20px; }}
   .stTabs [data-baseweb="tab"] {{ font-weight: 600; font-size: 0.85rem; color: #5a6a8a !important; background: transparent !important; padding: 10px 20px !important; border: none !important; border-radius: 0 !important; letter-spacing: 0.05em; }}
   .stTabs [aria-selected="true"] {{ color: #001f4d !important; border-bottom: 3px solid #E5A823 !important; }}
   .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] {{ display: none !important; }}
-  
-  /* Section titles */
+
   .agl-section-title {{ font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #001f4d; padding: 10px 0 8px 0; border-bottom: 1px solid #E5A823; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }}
   .agl-section-title-warn {{ border-bottom-color: #ef4444; }}
-  
-  /* Dataframes */
+
   .stDataFrame {{ border-radius: 6px; border: 1px solid #e2e8f0 !important; }}
   .stDataFrame thead tr th {{ background: #001f4d !important; color: #ffffff !important; font-size: 0.7rem !important; font-weight: 600 !important; letter-spacing: 0.06em !text-transform: uppercase !important; padding: 8px 12px !important; }}
-  
-  /* Summary Block */
+
   .agl-summary-block {{ background: #ffffff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 8px rgba(0,31,77,0.04); border: 1px solid #e2e8f0; margin-bottom: 20px; transition: all 0.3s ease; }}
   .agl-summary-group {{ margin-bottom: 16px; }}
   .agl-summary-title {{ font-size: 1rem; color: #001f4d; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; }}
@@ -162,7 +132,6 @@ st.markdown(f"""
   .val-neg {{ color: #ef4444; font-weight: bold; margin-left: 10px; }}
   .val-neu {{ color: #94a3b8; font-weight: bold; margin-left: 10px; }}
 
-  /* Slider in Tab */
   .stSlider > label {{ color: #001f4d !important; font-weight: 600 !important; text-transform: uppercase; font-size: 0.75rem !important; letter-spacing: 0.05em; }}
   [data-baseweb="slider"] [role="slider"] {{ background-color: #E5A823 !important; border-color: #E5A823 !important; }}
   [data-testid="stSliderTrack"] > div:first-child {{ background: rgba(229,168,35,0.25) !important; }}
@@ -195,12 +164,9 @@ def reset_validation():
 #  3. CONFIGURATION COLONNES & CACHE
 # ─────────────────────────────────────────────
 
-# Clients exclus de la concurrence et commentaires (Etat, mines, etc.)
-
 EXCLUDED_CLIENTS_UPPER = {c.upper() for c in EXCLUDED_CLIENTS_FILE}
 
 def load_excluded_clients():
-    """Charge la liste des clients exclus depuis le fichier JSON."""
     if os.path.exists(EXCLUDED_CLIENTS_FILE):
         try:
             with open(EXCLUDED_CLIENTS_FILE, 'r', encoding='utf-8') as f:
@@ -211,7 +177,6 @@ def load_excluded_clients():
     return []
 
 def save_excluded_clients(clients_list):
-    """Sauvegarde la liste des clients exclus dans le fichier JSON."""
     try:
         with open(EXCLUDED_CLIENTS_FILE, 'w', encoding='utf-8') as f:
             json.dump({'excluded_clients': clients_list}, f, ensure_ascii=False, indent=2)
@@ -219,52 +184,40 @@ def save_excluded_clients(clients_list):
         pass
 
 def add_excluded_clients(new_clients):
-    """Ajoute des clients à la liste noire (sans doublon)."""
     current = load_excluded_clients()
     updated = list(set(current + new_clients))
     save_excluded_clients(updated)
 
 def remove_excluded_clients(clients_to_remove):
-    """Retire des clients de la liste noire."""
     current = load_excluded_clients()
     updated = [c for c in current if c not in clients_to_remove]
     save_excluded_clients(updated)
 
 def _is_excluded_client(name):
-    """Check if a client name matches the exclusion list (substring match on MINE/MINISTERE + exact from JSON)."""
     up = str(name).upper().strip()
-    # Charger la liste noire depuis le fichier
     excluded_list = load_excluded_clients()
     excluded_upper = {c.upper() for c in excluded_list}
     if up in excluded_upper:
         return True
-    # Substring patterns for broader matching
     for kw in ['MINISTERE', 'MINISTRY', 'MINE ', 'MINES ', 'MINING', 'GOLD MINE']:
         if kw in up:
             return True
     return False
 
 def _is_non_apure(value):
-    """Check if a value is NON APURE (missing/empty/N/A data)."""
     if pd.isna(value):
         return True
     s = str(value).strip().upper()
     return s in ('', '0', '0.0', 'NAN', 'N/A', 'NON APURE', 'NONE')
 
 def _select_primary_competitor_rows(df_comp, client_col, trans_col='Transitaire', volume_col='NOMBRE_TEU'):
-    """Select main competitor per client, skipping NON APURE when possible.
-
-    If every candidate is NON APURE, keep the top row and label it NON APURE.
-    """
     if df_comp.empty:
         return pd.DataFrame(columns=[client_col, trans_col, volume_col])
-
     selected_rows = []
     for client in df_comp[client_col].dropna().unique():
         client_data = df_comp[df_comp[client_col] == client].sort_values(volume_col, ascending=False)
         if client_data.empty:
             continue
-
         chosen_row = None
         for _, row in client_data.iterrows():
             vol = pd.to_numeric(row[volume_col], errors='coerce')
@@ -272,16 +225,12 @@ def _select_primary_competitor_rows(df_comp, client_col, trans_col='Transitaire'
             if (not _is_non_apure(row[trans_col])) and (vol > 0):
                 chosen_row = row.copy()
                 break
-
         if chosen_row is None:
             chosen_row = client_data.iloc[0].copy()
             chosen_row[trans_col] = 'NON APURE'
-
         selected_rows.append(chosen_row)
-
     if not selected_rows:
         return pd.DataFrame(columns=[client_col, trans_col, volume_col])
-
     return pd.DataFrame(selected_rows)
 
 EXPECTED_COLS = {
@@ -297,7 +246,6 @@ OPTIONAL_COLS = {
     'Conditionnement':   ['CODE_CONDIT', 'CONDITIONNEMENT', 'TYPE CONTAINER', 'EQUIPEMENT', 'TAILLE']
 }
 
-# ── Configurations Aérien ──
 EXPECTED_COLS_AERIEN = {
     'Transitaire':    ['TRANSITAIRE', 'FORWARDER', 'CONSIGNATAIRE'],
     'NOMBRE_TEU':     ['POIDS MARCHANDISE', 'POIDS', 'WEIGHT', 'POIDS BRUT'],
@@ -343,78 +291,11 @@ def scan_all_sheets(f, sheet_names):
     return best
 
 
-def process_report_file(uploaded_file, flux_filter, data_type_hint):
-    """Process an uploaded Excel file for PPTX report generation.
-    flux_filter: 'I' for Import, 'E' for Export.
-    data_type_hint: 'maritime' or 'aerien'.
-    Returns (df_clean, client_col, metric_unit) or None on error.
-    """
-    try:
-        sheet_names = pd.ExcelFile(uploaded_file).sheet_names
-        expected = EXPECTED_COLS_AERIEN if data_type_hint == 'aerien' else EXPECTED_COLS
-        optional = OPTIONAL_COLS_AERIEN if data_type_hint == 'aerien' else OPTIONAL_COLS
-
-        best_sheet, best_score = sheet_names[0], -1
-        for s in sheet_names:
-            df_tmp = pd.read_excel(uploaded_file, sheet_name=s, nrows=5)
-            up = [str(c).upper() for c in df_tmp.columns]
-            score = sum(1 for al in expected.values() if any(a in up for a in al))
-            if score > best_score:
-                best_score, best_sheet = score, s
-
-        df_raw = pd.read_excel(uploaded_file, sheet_name=best_sheet)
-        upper_cols = {str(c).upper(): c for c in df_raw.columns}
-
-        mapping = {}
-        for std_col, aliases in {**expected, **optional}.items():
-            found = next((upper_cols[a] for a in aliases if a in upper_cols), None)
-            if found:
-                mapping[std_col] = found
-
-        for std_col in expected:
-            if std_col not in mapping:
-                return None
-
-        inverse = {v: k for k, v in mapping.items()}
-        df = df_raw.rename(columns=inverse)
-
-        flux_col = df['I_IMP_E_EXP'].astype(str).str.upper().str.strip()
-        df = df[flux_col.str.startswith(flux_filter[0].upper())].copy()
-        if df.empty:
-            return None
-
-        if data_type_hint == 'aerien':
-            df['NOMBRE_TEU'] = clean_numeric_col(df['NOMBRE_TEU'])
-            df['Année escale'] = clean_numeric_col(df['Année escale']).astype(int)
-            try:
-                mois_vals = df['Mois escale'].astype(str).str.replace(' ', '', regex=False).str.strip()
-                mois_numeric = pd.to_numeric(mois_vals, errors='coerce')
-                if mois_numeric.notna().all():
-                    df['Mois escale'] = mois_numeric.astype(int).map(MOIS_NUM_TO_NAME)
-            except:
-                pass
-
-        metric_unit = 'Kg' if data_type_hint == 'aerien' else 'Teus'
-        client_col = "Destinataire" if flux_filter[0].upper() == 'I' else "Chargeur"
-
-        if client_col not in df.columns:
-            alt = "Chargeur" if client_col == "Destinataire" else "Destinataire"
-            client_col = alt if alt in df.columns else None
-            if client_col is None:
-                return None
-
-        # For Export: determine geo filter column (Pays de prise en charge)
-        geo_col = 'Pays de livraison'  # default for Import
-        if flux_filter[0].upper() == 'E' and 'Pays de prise en charge' in df.columns:
-            geo_col = 'Pays de prise en charge'
-
-        return (df, client_col, metric_unit, geo_col)
-    except Exception:
-        return None
-
-
 @st.cache_data
 def get_stats_annee(df_annee, annee, client_col):
+    """Retourne les stats par client pour une année donnée.
+    Les colonnes sont nommées dynamiquement : Total_Marche_{annee}, AGL_Volume_{annee}, PDM_{annee}.
+    """
     if df_annee.empty:
         return pd.DataFrame(columns=[client_col, f'Total_Marche_{annee}', f'AGL_Volume_{annee}', f'PDM_{annee}'])
     stats = df_annee.groupby(client_col).agg(
@@ -436,95 +317,60 @@ def get_monthly_trend(df, client_col):
     trend['Date_Label'] = trend['Mois escale'] + " " + trend['Année escale'].astype(str)
     return trend
 
-PDM_COLUMN_CONFIG = {
-    "PDM 2026": st.column_config.NumberColumn("PDM 2026", format="%d %%"),
-    "PDM 2025": st.column_config.NumberColumn("PDM 2025", format="%d %%"),
-    "PDM AGL":  st.column_config.NumberColumn("PDM AGL",  format="%d %%"),
-    "PDM CONCURRENT": st.column_config.NumberColumn("PDM CONCURRENT", format="%d %%")
-}
-
-# Colonnes standard pour les tableaux AGL (utilisées pour le renommage global)
-STANDARD_COLUMNS = [
-    'CLIENTS', 'MARCHÉ 2026', 'AGL TEUS 2026', 'PDM 2026',
-    'MARCHÉ 2025', 'AGL TEUS 2025', 'PDM 2025', 'VARIATION'
-]
-
 def get_global_column_names():
-    """Récupère les noms de colonnes globaux depuis le cache."""
     cache = load_column_names_cache()
     if 'global_column_names' not in st.session_state:
         st.session_state['global_column_names'] = cache.get('global_column_names', {})
     return st.session_state['global_column_names']
 
 def save_global_column_names(names_dict):
-    """Sauvegarde les noms de colonnes globaux dans le cache."""
     st.session_state['global_column_names'] = names_dict
     cache = load_column_names_cache()
     cache['global_column_names'] = names_dict
     save_column_names_cache(cache)
 
 def render_column_rename_interface(available_cols):
-    """Affiche l'interface de renommage de colonnes pour tous les tableaux."""
     with st.expander("PERSONNALISER LES NOMS DE COLONNES (s'applique a tous les tableaux)", expanded=False):
         st.caption("Les modifications sont sauvegardées automatiquement et persistantes entre les sessions.")
         global_names = get_global_column_names()
-        
         cols = st.columns(min(4, len(available_cols)))
         new_names = {}
         for i, col in enumerate(available_cols):
             with cols[i % len(cols)]:
                 current_name = global_names.get(col, col)
-                new_name = st.text_input(
-                    f"{col}",
-                    value=current_name,
-                    key=f"global_col_rename_{i}",
-                    label_visibility="visible"
-                )
+                new_name = st.text_input(f"{col}", value=current_name, key=f"global_col_rename_{i}", label_visibility="visible")
                 new_names[col] = new_name if new_name else col
-        
-        # Sauvegarder si changement
         if new_names != global_names:
             save_global_column_names(new_names)
-        
         return new_names
 
-def apply_column_names(df, label_periode=None):
-    """Applique les noms de colonnes personnalisés au DataFrame."""
+def apply_column_names(df, label_periode=None, cur_year=None, prev_year=None):
     global_names = get_global_column_names()
     rename_map = {}
-    
     for col in df.columns:
-        # Chercher correspondance avec les colonnes standard (avec ou sans période)
-        base_col = col
         if label_periode:
-            # Normaliser pour la recherche: "MARCHÉ YTD MARS 2026" -> "MARCHÉ 2026"
             base_col_search = col.replace(f' {label_periode.upper()}', '')
         else:
             base_col_search = col
-        
-        # Chercher d'abord la colonne exacte, sinon la version sans période
         if col in global_names:
             rename_map[col] = global_names[col]
         elif base_col_search in global_names:
-            # Appliquer le renommage en conservant la période
             new_name = global_names[base_col_search]
             if label_periode and label_periode.upper() in col:
-                new_name = new_name.replace(' 2026', f' {label_periode.upper()} 2026').replace(' 2025', f' {label_periode.upper()} 2025')
+                if cur_year:
+                    new_name = new_name.replace(str(cur_year), f' {label_periode.upper()} {cur_year}')
+                if prev_year:
+                    new_name = new_name.replace(str(prev_year), f' {label_periode.upper()} {prev_year}')
             rename_map[col] = new_name
-    
     return df.rename(columns=rename_map) if rename_map else df
 
-# Fonction pour créer un éditeur avec tri (sans renommage par tableau)
 def editable_dataframe(df, key_prefix, has_total_row=True, use_global_names=False, label_periode=None):
-    """Affiche un DataFrame interactif avec tri via st.dataframe()."""
     if df is None or (hasattr(df, 'empty') and df.empty) or len(df) == 0:
         st.info("Aucune donnée à afficher.")
         return pd.DataFrame()
-    
-    # Créer une copie propre du DataFrame
+
     df = df.copy().reset_index(drop=True)
-    
-    # Séparer la ligne TOTAL si elle existe
+
     total_row = None
     df_data = df.copy()
     if has_total_row and len(df) > 0:
@@ -536,8 +382,7 @@ def editable_dataframe(df, key_prefix, has_total_row=True, use_global_names=Fals
                 df_data = df[~mask_total].copy()
         except:
             pass
-    
-    # Colonnes pour le tri
+
     if use_global_names:
         global_names = get_global_column_names()
         display_cols = [global_names.get(c, c) for c in df_data.columns]
@@ -545,26 +390,13 @@ def editable_dataframe(df, key_prefix, has_total_row=True, use_global_names=Fals
     else:
         display_cols = list(df_data.columns)
         col_mapping = {c: c for c in df_data.columns}
-    
-    # Contrôles de tri
+
     col_ctrl1, col_ctrl2 = st.columns([3, 1])
     with col_ctrl1:
-        sort_col_display = st.selectbox(
-            "Trier par",
-            options=["-- Aucun tri --"] + display_cols,
-            key=f"sort_col_{key_prefix}",
-            label_visibility="collapsed"
-        )
+        sort_col_display = st.selectbox("Trier par", options=["-- Aucun tri --"] + display_cols, key=f"sort_col_{key_prefix}", label_visibility="collapsed")
     with col_ctrl2:
-        sort_order = st.radio(
-            "Ordre",
-            options=["Desc", "Asc"],
-            horizontal=True,
-            key=f"sort_order_{key_prefix}",
-            label_visibility="collapsed"
-        )
-    
-    # Appliquer le tri
+        sort_order = st.radio("Ordre", options=["Desc", "Asc"], horizontal=True, key=f"sort_order_{key_prefix}", label_visibility="collapsed")
+
     if sort_col_display != "-- Aucun tri --":
         original_col = col_mapping.get(sort_col_display, sort_col_display)
         if original_col in df_data.columns:
@@ -578,27 +410,22 @@ def editable_dataframe(df, key_prefix, has_total_row=True, use_global_names=Fals
                     df_data = df_data.sort_values(by=original_col, ascending=ascending)
                 except:
                     pass
-    
-    # Remettre TOTAL à la fin
+
     if total_row is not None:
         df_display = pd.concat([df_data, total_row], ignore_index=True)
     else:
         df_display = df_data
-    
-    # Renommage global
+
     if use_global_names:
         df_final = apply_column_names(df_display, label_periode)
     else:
         df_final = df_display
 
     df_final.index = range(1, len(df_final) + 1)
-    
-    # Nettoyage des types pour compatibilité pyarrow
+
     for col in df_final.columns:
         try:
-            # Convertir les colonnes numériques
             if df_final[col].dtype == 'object':
-                # Vérifier si c'est une colonne numérique déguisée en object
                 numeric_vals = pd.to_numeric(df_final[col], errors='coerce')
                 if numeric_vals.notna().sum() > 0.5 * len(df_final):
                     df_final[col] = numeric_vals.fillna(0).astype(int)
@@ -608,60 +435,63 @@ def editable_dataframe(df, key_prefix, has_total_row=True, use_global_names=Fals
                 df_final[col] = df_final[col].fillna(0)
         except:
             df_final[col] = df_final[col].astype(str)
-    
-    # Configuration des colonnes pour PDM
+
     column_config = {}
     for col in df_final.columns:
         if 'PDM' in col.upper():
             column_config[col] = st.column_config.NumberColumn(col, format="%d %%")
-    
-    # Afficher avec st.dataframe interactif
-    st.dataframe(
-        df_final,
-        use_container_width=True,
-        hide_index=True,
-        column_config=column_config
-    )
+
+    st.dataframe(df_final, use_container_width=True, hide_index=True, column_config=column_config)
     return df_final
 
-def format_view_table(df, label_periode, client_col, cur_year=2026, prev_year=2025):
+
+def format_view_table(df, label_periode, client_col, cur_year, prev_year):
+    """Prépare les données pour l'affichage avec TOTAL — entièrement dynamique."""
     if df.empty: return pd.DataFrame()
     unit_upper = st.session_state.get('metric_unit', 'Teus').upper()
 
-    cols_to_keep = [client_col, f'Total_Marche_{cur_year}', f'AGL_Volume_{cur_year}', f'PDM_{cur_year}']
-    if f'Total_Marche_{prev_year}' in df.columns:
-        cols_to_keep += [f'Total_Marche_{prev_year}', f'AGL_Volume_{prev_year}', f'PDM_{prev_year}', 'Variation_Volume']
+    col_tm_cur = f'Total_Marche_{cur_year}'
+    col_ag_cur = f'AGL_Volume_{cur_year}'
+    col_pd_cur = f'PDM_{cur_year}'
+    col_tm_prv = f'Total_Marche_{prev_year}'
+    col_ag_prv = f'AGL_Volume_{prev_year}'
+    col_pd_prv = f'PDM_{prev_year}'
+
+    cols_to_keep = [client_col, col_tm_cur, col_ag_cur, col_pd_cur]
+    has_prev = col_tm_prv in df.columns
+    if has_prev:
+        cols_to_keep += [col_tm_prv, col_ag_prv, col_pd_prv, 'Variation_Volume']
 
     res = df[cols_to_keep].copy()
 
     total_row = {client_col: "TOTAL GLOBAL"}
-    total_row[f'Total_Marche_{cur_year}'] = res[f'Total_Marche_{cur_year}'].sum()
-    total_row[f'AGL_Volume_{cur_year}']   = res[f'AGL_Volume_{cur_year}'].sum()
-    total_row[f'PDM_{cur_year}'] = (total_row[f'AGL_Volume_{cur_year}'] / total_row[f'Total_Marche_{cur_year}'] * 100) if total_row[f'Total_Marche_{cur_year}'] > 0 else 0
+    total_row[col_tm_cur] = res[col_tm_cur].sum()
+    total_row[col_ag_cur] = res[col_ag_cur].sum()
+    total_row[col_pd_cur] = (total_row[col_ag_cur] / total_row[col_tm_cur] * 100) if total_row[col_tm_cur] > 0 else 0
 
-    if f'Total_Marche_{prev_year}' in res.columns:
-        total_row[f'Total_Marche_{prev_year}'] = res[f'Total_Marche_{prev_year}'].sum()
-        total_row[f'AGL_Volume_{prev_year}']   = res[f'AGL_Volume_{prev_year}'].sum()
-        total_row[f'PDM_{prev_year}'] = (total_row[f'AGL_Volume_{prev_year}'] / total_row[f'Total_Marche_{prev_year}'] * 100) if total_row[f'Total_Marche_{prev_year}'] > 0 else 0
-        total_row['Variation_Volume']  = res['Variation_Volume'].sum()
+    if has_prev:
+        total_row[col_tm_prv] = res[col_tm_prv].sum()
+        total_row[col_ag_prv] = res[col_ag_prv].sum()
+        total_row[col_pd_prv] = (total_row[col_ag_prv] / total_row[col_tm_prv] * 100) if total_row[col_tm_prv] > 0 else 0
+        total_row['Variation_Volume'] = res['Variation_Volume'].sum()
 
     res = pd.concat([pd.DataFrame([total_row]), res], ignore_index=True)
 
     new_cols = ['CLIENTS', f'MARCHÉ {label_periode.upper()} {cur_year}', f'AGL {unit_upper} {cur_year}', f'PDM {cur_year}']
-    if f'Total_Marche_{prev_year}' in df.columns:
+    if has_prev:
         new_cols += [f'MARCHÉ {label_periode.upper()} {prev_year}', f'AGL {unit_upper} {prev_year}', f'PDM {prev_year}', 'VARIATION']
     res.columns = new_cols
-    # Assurer les types de colonnes pour compatibilité pyarrow
+
     res['CLIENTS'] = res['CLIENTS'].astype(str)
     for col in res.columns:
         if any(k in col for k in [unit_upper, 'VARIATION', 'MARCHÉ', 'PDM']):
             res[col] = res[col].fillna(0).astype(int)
     return res
 
+
 def format_delta_html(val):
     def _fmt_space(value):
         return f"{abs(int(value)):,}".replace(",", " ")
-
     unit = st.session_state.get('metric_unit', 'Teus')
     if val > 0: return f'<span class="val-pos">+ {_fmt_space(val)} {unit}</span>'
     if val < 0: return f'<span class="val-neg">- {_fmt_space(val)} {unit}</span>'
@@ -680,8 +510,7 @@ with st.sidebar:
     st.markdown('<div style="height:1px;background:rgba(229,168,35,.25);margin:12px 0 20px;"></div>', unsafe_allow_html=True)
     st.markdown('<div style="font-weight:600;font-size:0.75rem;color:#E5A823;letter-spacing:0.1em;margin-bottom:10px;">SOURCE DE DONNÉES</div>', unsafe_allow_html=True)
     uploaded_file = st.file_uploader("Fichier Excel (.xlsx)", type=['xlsx'], label_visibility="collapsed", on_change=reset_validation)
-    
-    # ── FICHIERS RAPPORT PPTX (détection automatique) ──
+
     st.markdown('<div style="height:1px;background:rgba(229,168,35,.25);margin:20px 0;"></div>', unsafe_allow_html=True)
     st.markdown('<div style="font-weight:600;font-size:0.75rem;color:#E5A823;letter-spacing:0.1em;margin-bottom:10px;">DONNÉES RAPPORT PPTX</div>', unsafe_allow_html=True)
     st.caption("Chargez un ou plusieurs fichiers Excel. Le type (Import/Export, Maritime/Aérien) et la période seront détectés automatiquement.")
@@ -689,17 +518,17 @@ with st.sidebar:
 
     st.markdown('<div style="height:1px;background:rgba(229,168,35,.25);margin:20px 0;"></div>', unsafe_allow_html=True)
     st.markdown(f'<div style="font-weight:600;font-size:0.75rem;color:#E5A823;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:8px;">{ICON_SETTINGS} OPTIONS SYSTÈME</div>', unsafe_allow_html=True)
-    
+
     if st.button("Purger le cache et réinitialiser", type="secondary"):
         st.session_state.show_confirm_purge = True
-        
+
     if st.session_state.get('show_confirm_purge', False):
         st.warning("Êtes-vous sûr de vouloir purger le cache et réinitialiser l'application ?")
         col_y, col_n = st.columns(2)
         with col_y:
             if st.button("Oui, purger", type="primary"):
                 st.cache_data.clear()
-                clear_column_names_cache()  # Supprime aussi le cache des noms de colonnes
+                clear_column_names_cache()
                 st.session_state.clear()
                 st.rerun()
         with col_n:
@@ -742,7 +571,6 @@ if uploaded_file and not st.session_state.validated:
             raw_cols = df_raw.columns.tolist()
             upper_cols = {str(c).upper(): c for c in raw_cols}
 
-        # Détection automatique du type de données
         data_type = detect_data_type(raw_cols)
         active_expected = EXPECTED_COLS_AERIEN if data_type == 'aerien' else EXPECTED_COLS
         active_optional = OPTIONAL_COLS_AERIEN if data_type == 'aerien' else OPTIONAL_COLS
@@ -783,7 +611,7 @@ if uploaded_file and not st.session_state.validated:
             st.markdown("<br>", unsafe_allow_html=True)
             inverse_mapping = {v: k for k, v in final_mapping.items()}
             df_mapped = df_raw.rename(columns=inverse_mapping)
-            
+
             flux_options = df_mapped['I_IMP_E_EXP'].dropna().unique()
             flux_choisi  = st.radio("SÉLECTION DU FLUX MÉTIER POUR LE DASHBOARD :", flux_options, horizontal=True)
 
@@ -792,7 +620,6 @@ if uploaded_file and not st.session_state.validated:
                 with st.spinner("Préparation du tableau de bord..."):
                     df_clean = df_mapped[df_mapped['I_IMP_E_EXP'] == flux_choisi].copy()
 
-                    # Nettoyage données aériennes (espaces dans nombres, mois numériques)
                     if data_type == 'aerien':
                         df_clean['NOMBRE_TEU'] = clean_numeric_col(df_clean['NOMBRE_TEU'])
                         df_clean['Année escale'] = clean_numeric_col(df_clean['Année escale']).astype(int)
@@ -825,31 +652,10 @@ elif not uploaded_file:
 
 
 # ─────────────────────────────────────────────
-#  5b. GÉNÉRATION RAPPORT PPTX (clone-from-template)
+#  5b. GÉNÉRATION RAPPORT PPTX
 # ─────────────────────────────────────────────
-# Template slide indices (0-based):
-#   0  = Cover
-#   1  = Market overview
-#   2  = Section separator Import Maritime    ("A.")
-#   3  = Synthese Import Maritime             (KPI table + comments)
-#   4  = Top 20 Import Maritime               (data table 21r x 9c)
-#   5  = Detail Import Maritime               (OLE charts)
-#   6  = Fonds de Commerce Import Maritime    (OLE charts)
-#   7  = Section separator Export Maritime    ("B.")
-#   8  = Synthese Export Maritime
-#   9  = Top 20 Export Maritime
-#  10  = Detail Export Maritime
-#  11  = Fonds de Commerce Export Maritime
-#  12  = Section separator Import Aérien      ("C.")
-#  13  = Synthese Import Aérien
-#  14  = Top 20 Import Aérien
-#  15  = Detail Import Aérien
-#  16  = Fonds de Commerce Import Aérien
+TEMPLATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'DATA', 'template.pptx')
 
-TEMPLATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             'DATA', 'template.pptx')
-
-# Section map: name -> (separator_idx, synthese_idx, top20_idx, detail_idx, fonds_idx)
 SECTION_TEMPLATE_MAP = {
     'Import Maritime':  (2, 3, 4, 5, 6),
     'Export Maritime':  (7, 8, 9, 10, 11),
@@ -857,8 +663,8 @@ SECTION_TEMPLATE_MAP = {
 }
 
 def _make_dual_xlsx(left_title, right_title, left_df, right_df,
-                    client_col, label_per, unit, right_extra_col=None):
-    """Generate a dual-column embedded Excel (100% PDM / Actifs / Hausse-Baisse)."""
+                    client_col, label_per, unit, cur_year, prev_year, right_extra_col=None):
+    """Generate a dual-column embedded Excel — années dynamiques."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
@@ -868,7 +674,6 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
     lp = label_per.upper().split()[-1] if ' ' in label_per else label_per.upper()
     u = unit.upper()
 
-    # ── Style definitions ──
     thin = Side(style='thin')
     border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
     title_font = Font(bold=True, size=10)
@@ -885,7 +690,6 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
     num_fmt = '#,##0'
     pct_fmt = '0%'
 
-    # ── Column widths ──
     ws.column_dimensions['A'].width = 5
     ws.column_dimensions['B'].width = 35
     for col in ['C', 'D', 'E', 'F', 'G', 'H', 'I']:
@@ -895,123 +699,67 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
     for col in ['L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S']:
         ws.column_dimensions[col].width = 12
 
-    # ── Row 2: Titles ──
     ws.cell(2, 2, left_title).font = title_font
     ws.cell(2, 11, right_title).font = title_font
 
-    # ── Row 4: Headers ──
-    hdrs = ['CLIENTS', f'VOLUME {lp} 2026 {u}', f'AGL {lp} 2026 {u}',
-            'PDM 2026', f'VOLUME {lp} 2025 {u}', f'AGL {lp} 2025 {u}',
-            'PDM 2025', 'VARIATION']
+    hdrs = ['CLIENTS',
+            f'VOLUME {lp} {cur_year} {u}', f'AGL {lp} {cur_year} {u}', f'PDM {cur_year}',
+            f'VOLUME {lp} {prev_year} {u}', f'AGL {lp} {prev_year} {u}', f'PDM {prev_year}',
+            'VARIATION']
     for i, h in enumerate(hdrs):
-        # Left side
         cl = ws.cell(4, 2 + i, h)
-        cl.font = hdr_font
-        cl.fill = left_hdr_fill
-        cl.alignment = hdr_align_l if i == 0 else hdr_align_c
-        cl.border = border_all
-        # Right side
+        cl.font = hdr_font; cl.fill = left_hdr_fill
+        cl.alignment = hdr_align_l if i == 0 else hdr_align_c; cl.border = border_all
         cr = ws.cell(4, 11 + i, h)
-        cr.font = hdr_font
-        cr.fill = right_hdr_fill
-        cr.alignment = hdr_align_l if i == 0 else hdr_align_c
-        cr.border = border_all
+        cr.font = hdr_font; cr.fill = right_hdr_fill
+        cr.alignment = hdr_align_l if i == 0 else hdr_align_c; cr.border = border_all
+
+    col_tm_cur = f'Total_Marche_{cur_year}'
+    col_ag_cur = f'AGL_Volume_{cur_year}'
+    col_tm_prv = f'Total_Marche_{prev_year}'
+    col_ag_prv = f'AGL_Volume_{prev_year}'
 
     def _write_side(df, num_col, data_col, is_right=False, hdr_fill=None):
         for idx, (_, row) in enumerate(df.iterrows()):
             r = 5 + idx
-            tm26 = int(row.get('Total_Marche_2026', 0))
-            ta26 = int(row.get('AGL_Volume_2026', 0))
-            tm25 = int(row.get('Total_Marche_2025', 0))
-            ta25 = int(row.get('AGL_Volume_2025', 0))
-            # Row number
+            tm_cur = int(row.get(col_tm_cur, 0))
+            ta_cur = int(row.get(col_ag_cur, 0))
+            tm_prv = int(row.get(col_tm_prv, 0))
+            ta_prv = int(row.get(col_ag_prv, 0))
             c_idx = ws.cell(r, num_col, idx + 1)
-            c_idx.font = data_font
-            c_idx.number_format = num_fmt
-            c_idx.alignment = idx_align
-            # Client name
+            c_idx.font = data_font; c_idx.number_format = num_fmt; c_idx.alignment = idx_align
             c_name = ws.cell(r, data_col, str(row[client_col]))
-            c_name.font = data_font
-            c_name.alignment = left_align
-            c_name.border = border_all
-            # Volume 2026
-            c_v26 = ws.cell(r, data_col + 1, tm26)
-            c_v26.font = data_font
-            c_v26.number_format = num_fmt
-            c_v26.alignment = num_align
-            c_v26.border = border_all
-            # AGL 2026
-            c_a26 = ws.cell(r, data_col + 2, ta26)
-            c_a26.font = data_font
-            c_a26.number_format = num_fmt
-            c_a26.alignment = num_align
-            c_a26.border = border_all
-            # PDM 2026
-            c_p26 = ws.cell(r, data_col + 3, ta26 / tm26 if tm26 > 0 else 0)
-            c_p26.font = data_font
-            c_p26.number_format = pct_fmt
-            c_p26.alignment = num_align
-            c_p26.border = border_all
-            # Volume 2025
-            c_v25 = ws.cell(r, data_col + 4, tm25)
-            c_v25.font = data_font
-            c_v25.number_format = num_fmt
-            c_v25.alignment = num_align
-            c_v25.border = border_all
-            # AGL 2025
-            c_a25 = ws.cell(r, data_col + 5, ta25)
-            c_a25.font = data_font
-            c_a25.number_format = num_fmt
-            c_a25.alignment = num_align
-            c_a25.border = border_all
-            # PDM 2025
-            c_p25 = ws.cell(r, data_col + 6, ta25 / tm25 if tm25 > 0 else 0)
-            c_p25.font = data_font
-            c_p25.number_format = pct_fmt
-            c_p25.alignment = num_align
-            c_p25.border = border_all
-            # Variation
-            c_var = ws.cell(r, data_col + 7, int(ta26 - ta25))
-            c_var.font = data_font
-            c_var.number_format = num_fmt
-            c_var.alignment = num_align
+            c_name.font = data_font; c_name.alignment = left_align; c_name.border = border_all
+            for off, val in [(1, tm_cur), (2, ta_cur), (4, tm_prv), (5, ta_prv)]:
+                cc = ws.cell(r, data_col + off, val)
+                cc.font = data_font; cc.number_format = num_fmt; cc.alignment = num_align; cc.border = border_all
+            c_p_cur = ws.cell(r, data_col + 3, ta_cur / tm_cur if tm_cur > 0 else 0)
+            c_p_cur.font = data_font; c_p_cur.number_format = pct_fmt; c_p_cur.alignment = num_align; c_p_cur.border = border_all
+            c_p_prv = ws.cell(r, data_col + 6, ta_prv / tm_prv if tm_prv > 0 else 0)
+            c_p_prv.font = data_font; c_p_prv.number_format = pct_fmt; c_p_prv.alignment = num_align; c_p_prv.border = border_all
+            c_var = ws.cell(r, data_col + 7, int(ta_cur - ta_prv))
+            c_var.font = data_font; c_var.number_format = num_fmt; c_var.alignment = num_align
             if is_right and right_extra_col and right_extra_col in row.index:
                 c_vm = ws.cell(r, data_col + 8, int(row[right_extra_col]))
-                c_vm.font = data_font
-                c_vm.number_format = num_fmt
-                c_vm.alignment = num_align
-        # TOTAL row
+                c_vm.font = data_font; c_vm.number_format = num_fmt; c_vm.alignment = num_align
         if len(df) > 0:
             r = 5 + len(df)
-            s26 = int(df['Total_Marche_2026'].sum())
-            a26 = int(df['AGL_Volume_2026'].sum())
-            s25 = int(df['Total_Marche_2025'].sum())
-            a25 = int(df['AGL_Volume_2025'].sum())
+            s_cur = int(df[col_tm_cur].sum()); a_cur = int(df[col_ag_cur].sum())
+            s_prv = int(df[col_tm_prv].sum()) if col_tm_prv in df.columns else 0
+            a_prv = int(df[col_ag_prv].sum()) if col_ag_prv in df.columns else 0
             c_t = ws.cell(r, data_col, 'TOTAL')
-            c_t.font = data_font_bold
-            c_t.alignment = left_align
-            c_t.border = border_all
-            for off, val in [(1, s26), (2, a26), (4, s25), (5, a25)]:
+            c_t.font = data_font_bold; c_t.alignment = left_align; c_t.border = border_all
+            for off, val in [(1, s_cur), (2, a_cur), (4, s_prv), (5, a_prv)]:
                 cc = ws.cell(r, data_col + off, val)
-                cc.font = data_font_bold
-                cc.number_format = num_fmt
-                cc.alignment = num_align
-                cc.border = border_all
-            for off, num, den in [(3, a26, s26), (6, a25, s25)]:
+                cc.font = data_font_bold; cc.number_format = num_fmt; cc.alignment = num_align; cc.border = border_all
+            for off, num, den in [(3, a_cur, s_cur), (6, a_prv, s_prv)]:
                 cc = ws.cell(r, data_col + off, num / den if den > 0 else 0)
-                cc.font = data_font_bold
-                cc.number_format = pct_fmt
-                cc.alignment = num_align
-                cc.border = border_all
-            cc = ws.cell(r, data_col + 7, int(a26 - a25))
-            cc.font = data_font_bold
-            cc.number_format = num_fmt
-            cc.alignment = num_align
+                cc.font = data_font_bold; cc.number_format = pct_fmt; cc.alignment = num_align; cc.border = border_all
+            cc = ws.cell(r, data_col + 7, int(a_cur - a_prv))
+            cc.font = data_font_bold; cc.number_format = num_fmt; cc.alignment = num_align
             if is_right and right_extra_col and right_extra_col in df.columns:
                 cc = ws.cell(r, data_col + 8, int(df[right_extra_col].sum()))
-                cc.font = data_font_bold
-                cc.number_format = num_fmt
-                cc.alignment = num_align
+                cc.font = data_font_bold; cc.number_format = num_fmt; cc.alignment = num_align
 
     _write_side(left_df, 1, 2, False, left_hdr_fill)
     _write_side(right_df, 10, 11, True, right_hdr_fill)
@@ -1020,34 +768,37 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
     return buf.getvalue()
 
 
-def _categorize_clients(comp, client_col):
-    """Categorize clients into: captive 100% PDM, new/lost, hausse/baisse."""
+def _categorize_clients(comp, client_col, cur_year, prev_year):
+    """Categorize clients — années dynamiques."""
     c = comp.copy()
-    c['Variation'] = c['AGL_Volume_2026'] - c['AGL_Volume_2025']
-    c['Var_Marche'] = c['Total_Marche_2026'] - c['Total_Marche_2025']
-    c['PDM_25'] = c.apply(lambda r: r['AGL_Volume_2025'] / r['Total_Marche_2025']
-                          if r['Total_Marche_2025'] > 0 else 0, axis=1)
-    c['PDM_26'] = c.apply(lambda r: r['AGL_Volume_2026'] / r['Total_Marche_2026']
-                          if r['Total_Marche_2026'] > 0 else 0, axis=1)
+    col_ag_cur = f'AGL_Volume_{cur_year}'
+    col_ag_prv = f'AGL_Volume_{prev_year}'
+    col_tm_cur = f'Total_Marche_{cur_year}'
+    col_tm_prv = f'Total_Marche_{prev_year}'
 
-    active_both = c[(c['Total_Marche_2025'] > 0) & (c['Total_Marche_2026'] > 0)]
-    captive = active_both[(active_both['PDM_25'] >= 0.95) & (active_both['PDM_26'] >= 0.95) &
-                          (active_both['AGL_Volume_2025'] > 0) & (active_both['AGL_Volume_2026'] > 0)]
+    c['Variation'] = c[col_ag_cur] - c[col_ag_prv]
+    c['Var_Marche'] = c[col_tm_cur] - c[col_tm_prv]
+    c['PDM_prv'] = c.apply(lambda r: r[col_ag_prv] / r[col_tm_prv] if r[col_tm_prv] > 0 else 0, axis=1)
+    c['PDM_cur'] = c.apply(lambda r: r[col_ag_cur] / r[col_tm_cur] if r[col_tm_cur] > 0 else 0, axis=1)
+
+    active_both = c[(c[col_tm_prv] > 0) & (c[col_tm_cur] > 0)]
+    captive = active_both[(active_both['PDM_prv'] >= 0.95) & (active_both['PDM_cur'] >= 0.95) &
+                          (active_both[col_ag_prv] > 0) & (active_both[col_ag_cur] > 0)]
     non_captive = active_both[~active_both.index.isin(captive.index)]
 
     return {
-        'captive_up': captive[captive['Variation'] >= 0].sort_values('Variation', ascending=False),
+        'captive_up':   captive[captive['Variation'] >= 0].sort_values('Variation', ascending=False),
         'captive_down': captive[captive['Variation'] < 0].sort_values('Variation', ascending=True),
-        'new': c[(c['Total_Marche_2025'] == 0) & (c['AGL_Volume_2026'] > 0)].sort_values('Variation', ascending=False),
-        'lost': c[(c['Total_Marche_2026'] == 0) & (c['AGL_Volume_2025'] > 0)].sort_values('Variation', ascending=True),
-        'hausse': non_captive[non_captive['Variation'] > 0].sort_values('Variation', ascending=False),
-        'baisse': non_captive[non_captive['Variation'] < 0].sort_values('Variation', ascending=True),
+        'new':          c[(c[col_tm_prv] == 0) & (c[col_ag_cur] > 0)].sort_values('Variation', ascending=False),
+        'lost':         c[(c[col_tm_cur] == 0) & (c[col_ag_prv] > 0)].sort_values('Variation', ascending=True),
+        'hausse':       non_captive[non_captive['Variation'] > 0].sort_values('Variation', ascending=False),
+        'baisse':       non_captive[non_captive['Variation'] < 0].sort_values('Variation', ascending=True),
         'all': c,
     }
 
 
-def _make_top100_xlsx(comp, client_col, label_per, unit):
-    """Generate TOP 100 clients Excel."""
+def _make_top100_xlsx(comp, client_col, label_per, unit, cur_year, prev_year):
+    """Generate TOP 100 clients Excel — années dynamiques."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
@@ -1056,12 +807,16 @@ def _make_top100_xlsx(comp, client_col, label_per, unit):
     ws.title = 'Feuil1'
     lp = label_per.upper().split()[-1] if ' ' in label_per else label_per.upper()
     u = unit.upper()
+    col_tm_cur = f'Total_Marche_{cur_year}'
+    col_ag_cur = f'AGL_Volume_{cur_year}'
+    col_tm_prv = f'Total_Marche_{prev_year}'
+    col_ag_prv = f'AGL_Volume_{prev_year}'
+
     c = comp.copy()
-    c['Variation'] = c['AGL_Volume_2026'] - c['AGL_Volume_2025']
-    top = c.sort_values('Total_Marche_2026', ascending=False).head(100)
+    c['Variation'] = c[col_ag_cur] - c[col_ag_prv]
+    top = c.sort_values(col_tm_cur, ascending=False).head(100)
     role = 'IMPORTATEURS' if client_col == 'Destinataire' else 'EXPORTATEURS'
 
-    # ── Style definitions ──
     thin = Side(style='thin')
     border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
     title_font = Font(bold=True, size=10)
@@ -1076,91 +831,46 @@ def _make_top100_xlsx(comp, client_col, label_per, unit):
     num_fmt = '#,##0'
     pct_fmt = '0%'
 
-    # ── Column widths ──
     ws.column_dimensions['A'].width = 5
     ws.column_dimensions['B'].width = 55
     for col in ['C', 'D', 'E', 'F', 'G', 'H', 'I']:
         ws.column_dimensions[col].width = 12
 
-    # ── Row 2: Title ──
     ws.cell(2, 2, f"TOP 100 {role} COTE D'IVOIRE").font = title_font
 
-    # ── Row 4: Headers ──
-    hdrs = [role, f'VOLUME {u} {lp} 2026', f'AGL {u} {lp} 2026',
-            'PDM 2026', f'VOLUME {u} {lp} 2025', f'AGL {u} {lp} 2025',
-            'PDM 2025', 'VARIATION']
+    hdrs = [role,
+            f'VOLUME {u} {lp} {cur_year}', f'AGL {u} {lp} {cur_year}', f'PDM {cur_year}',
+            f'VOLUME {u} {lp} {prev_year}', f'AGL {u} {lp} {prev_year}', f'PDM {prev_year}',
+            'VARIATION']
     for i, h in enumerate(hdrs):
         cl = ws.cell(4, 2 + i, h)
-        cl.font = hdr_font
-        cl.fill = hdr_fill
-        cl.alignment = hdr_align_l if i == 0 else hdr_align_c
-        cl.border = border_all
+        cl.font = hdr_font; cl.fill = hdr_fill
+        cl.alignment = hdr_align_l if i == 0 else hdr_align_c; cl.border = border_all
 
-    # ── Data rows ──
     for idx, (_, row) in enumerate(top.iterrows()):
         r = 5 + idx
-        tm26 = int(row['Total_Marche_2026'])
-        ta26 = int(row['AGL_Volume_2026'])
-        tm25 = int(row.get('Total_Marche_2025', 0))
-        ta25 = int(row.get('AGL_Volume_2025', 0))
-        # Row number
-        c_idx = ws.cell(r, 1, idx + 1)
-        c_idx.font = data_font
-        c_idx.alignment = idx_align
-        # Client name
+        tm_cur = int(row.get(col_tm_cur, 0)); ta_cur = int(row.get(col_ag_cur, 0))
+        tm_prv = int(row.get(col_tm_prv, 0)); ta_prv = int(row.get(col_ag_prv, 0))
+        ws.cell(r, 1, idx + 1).font = data_font
         c_name = ws.cell(r, 2, str(row[client_col]))
-        c_name.font = data_font
-        c_name.alignment = left_align
-        c_name.border = border_all
-        # Volume 2026
-        c_v26 = ws.cell(r, 3, tm26)
-        c_v26.font = data_font
-        c_v26.number_format = num_fmt
-        c_v26.alignment = num_align
-        c_v26.border = border_all
-        # AGL 2026
-        c_a26 = ws.cell(r, 4, ta26)
-        c_a26.font = data_font
-        c_a26.number_format = num_fmt
-        c_a26.alignment = num_align
-        c_a26.border = border_all
-        # PDM 2026
-        c_p26 = ws.cell(r, 5, ta26 / tm26 if tm26 > 0 else 0)
-        c_p26.font = data_font
-        c_p26.number_format = pct_fmt
-        c_p26.alignment = num_align
-        c_p26.border = border_all
-        # Volume 2025
-        c_v25 = ws.cell(r, 6, tm25)
-        c_v25.font = data_font
-        c_v25.number_format = num_fmt
-        c_v25.alignment = num_align
-        c_v25.border = border_all
-        # AGL 2025
-        c_a25 = ws.cell(r, 7, ta25)
-        c_a25.font = data_font
-        c_a25.number_format = num_fmt
-        c_a25.alignment = num_align
-        c_a25.border = border_all
-        # PDM 2025
-        c_p25 = ws.cell(r, 8, ta25 / tm25 if tm25 > 0 else 0)
-        c_p25.font = data_font
-        c_p25.number_format = pct_fmt
-        c_p25.alignment = num_align
-        c_p25.border = border_all
-        # Variation
-        c_var = ws.cell(r, 9, int(ta26 - ta25))
-        c_var.font = data_font
-        c_var.number_format = num_fmt
-        c_var.alignment = num_align
+        c_name.font = data_font; c_name.alignment = left_align; c_name.border = border_all
+        for off, val in [(3, tm_cur), (4, ta_cur), (6, tm_prv), (7, ta_prv)]:
+            cc = ws.cell(r, off, val); cc.font = data_font; cc.number_format = num_fmt
+            cc.alignment = num_align; cc.border = border_all
+        c_p_cur = ws.cell(r, 5, ta_cur / tm_cur if tm_cur > 0 else 0)
+        c_p_cur.font = data_font; c_p_cur.number_format = pct_fmt; c_p_cur.alignment = num_align; c_p_cur.border = border_all
+        c_p_prv = ws.cell(r, 8, ta_prv / tm_prv if tm_prv > 0 else 0)
+        c_p_prv.font = data_font; c_p_prv.number_format = pct_fmt; c_p_prv.alignment = num_align; c_p_prv.border = border_all
+        c_var = ws.cell(r, 9, int(ta_cur - ta_prv))
+        c_var.font = data_font; c_var.number_format = num_fmt; c_var.alignment = num_align
 
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
 
 
-def _make_competitor_xlsx(df_cible, pattern, label, client_col, unit):
-    """Generate a competitor portfolio Excel (e.g., CEVA, SDMA, MAERSK)."""
+def _make_competitor_xlsx(df_cible, pattern, label, client_col, unit, cur_year):
+    """Generate a competitor portfolio Excel — année dynamique."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
@@ -1168,12 +878,11 @@ def _make_competitor_xlsx(df_cible, pattern, label, client_col, unit):
     ws = wb.active
     ws.title = 'Feuil1'
     u = unit.upper()
-    df26 = df_cible[df_cible['Année escale'] == 2026]
-    cf = df26[df26['Transitaire'].astype(str).str.contains(pattern, case=False, na=False)]
+    df_cur = df_cible[df_cible['Année escale'] == cur_year]
+    cf = df_cur[df_cur['Transitaire'].astype(str).str.contains(pattern, case=False, na=False)]
     portfolio = cf.groupby(client_col)['NOMBRE_TEU'].sum().reset_index()
     portfolio = portfolio.sort_values('NOMBRE_TEU', ascending=False)
 
-    # ── Style definitions ──
     thin = Side(style='thin')
     border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
     title_font = Font(bold=True, size=10)
@@ -1187,60 +896,38 @@ def _make_competitor_xlsx(df_cible, pattern, label, client_col, unit):
     left_align = Alignment(horizontal='left')
     num_fmt = '#,##0'
 
-    # ── Column widths ──
     ws.column_dimensions['A'].width = 5
     ws.column_dimensions['B'].width = 52
     ws.column_dimensions['C'].width = 12
 
-    # ── Row 2: Title ──
-    ws.cell(2, 2, f'PORTEFEUILLE {label}  2026 EN {u}').font = title_font
+    ws.cell(2, 2, f'PORTEFEUILLE {label}  {cur_year} EN {u}').font = title_font
 
-    # ── Row 4: Headers ──
     cl = ws.cell(4, 2, 'CLIENTS')
-    cl.font = hdr_font
-    cl.fill = hdr_fill
-    cl.alignment = hdr_align_l
-    cl.border = border_all
+    cl.font = hdr_font; cl.fill = hdr_fill; cl.alignment = hdr_align_l; cl.border = border_all
     cr = ws.cell(4, 3, u)
-    cr.font = hdr_font
-    cr.fill = hdr_fill
-    cr.alignment = hdr_align_c
-    cr.border = border_all
+    cr.font = hdr_font; cr.fill = hdr_fill; cr.alignment = hdr_align_c; cr.border = border_all
 
-    # ── Data rows ──
     for idx, (_, row) in enumerate(portfolio.iterrows()):
         r = 5 + idx
-        c_idx = ws.cell(r, 1, idx + 1 if idx < 20 else '')
-        c_idx.font = data_font
+        ws.cell(r, 1, idx + 1 if idx < 20 else '').font = data_font
         c_name = ws.cell(r, 2, str(row[client_col]))
-        c_name.font = data_font
-        c_name.alignment = left_align
-        c_name.border = border_all
+        c_name.font = data_font; c_name.alignment = left_align; c_name.border = border_all
         c_val = ws.cell(r, 3, int(row['NOMBRE_TEU']))
-        c_val.font = data_font
-        c_val.number_format = num_fmt
-        c_val.alignment = num_align
-        c_val.border = border_all
+        c_val.font = data_font; c_val.number_format = num_fmt; c_val.alignment = num_align; c_val.border = border_all
 
-    # TOTAL row
     r_total = 5 + len(portfolio)
     c_t = ws.cell(r_total, 2, 'Total général')
-    c_t.font = data_font_bold
-    c_t.alignment = left_align
-    c_t.border = border_all
+    c_t.font = data_font_bold; c_t.alignment = left_align; c_t.border = border_all
     c_tv = ws.cell(r_total, 3, int(portfolio['NOMBRE_TEU'].sum()))
-    c_tv.font = data_font_bold
-    c_tv.number_format = num_fmt
-    c_tv.alignment = num_align
-    c_tv.border = border_all
+    c_tv.font = data_font_bold; c_tv.number_format = num_fmt; c_tv.alignment = num_align; c_tv.border = border_all
 
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
 
 
-def _generate_embedded_excels(sections_data, label_periode):
-    """Generate replacement embedded Excel files for all sections."""
+def _generate_embedded_excels(sections_data, label_periode, cur_year, prev_year):
+    """Generate replacement embedded Excel files — années dynamiques."""
     EMBEDDED_MAP = {
         'Import Maritime': {
             'detail': ['Microsoft_Excel_Worksheet.xlsx', 'Microsoft_Excel_Worksheet1.xlsx',
@@ -1263,7 +950,7 @@ def _generate_embedded_excels(sections_data, label_periode):
     }
     COMPETITORS = [('CEVA', 'CEVA LOGISTICS'), ('SDMA', 'SDMA'), ('MAERSK', 'MAERSK')]
 
-    replacements = {}  # {zip_path: xlsx_bytes}
+    replacements = {}
 
     for sec_name, sd in sections_data.items():
         if sec_name not in EMBEDDED_MAP:
@@ -1274,44 +961,34 @@ def _generate_embedded_excels(sections_data, label_periode):
         mu = sd['metric_unit']
         files = EMBEDDED_MAP[sec_name]
 
-        cats = _categorize_clients(comp, ccol)
+        cats = _categorize_clients(comp, ccol, cur_year, prev_year)
 
-        # Detail sheet 1: 100% PDM
         replacements[f'ppt/embeddings/{files["detail"][0]}'] = _make_dual_xlsx(
             'CLIENTS A 100% DE PDM AVEC VOLUME EN CROISSANCE',
             'CLIENTS A 100% DE PDM AVEC VOLUME EN DECROISSANCE',
-            cats['captive_up'], cats['captive_down'], ccol, label_periode, mu)
+            cats['captive_up'], cats['captive_down'], ccol, label_periode, mu, cur_year, prev_year)
 
-        # Detail sheet 2: Actifs / Non Actifs
         replacements[f'ppt/embeddings/{files["detail"][1]}'] = _make_dual_xlsx(
             'CLIENTS ACTIFS', 'CLIENTS NON ACTIFS',
-            cats['new'], cats['lost'], ccol, label_periode, mu)
+            cats['new'], cats['lost'], ccol, label_periode, mu, cur_year, prev_year)
 
-        # Detail sheet 3: Hausse / Baisse (with market variation column)
         replacements[f'ppt/embeddings/{files["detail"][2]}'] = _make_dual_xlsx(
             'CLIENTS EN HAUSSES', 'CLIENTS EN BAISSES',
-            cats['hausse'], cats['baisse'], ccol, label_periode, mu,
+            cats['hausse'], cats['baisse'], ccol, label_periode, mu, cur_year, prev_year,
             right_extra_col='Var_Marche')
 
-        # Detail sheet 4: TOP 100
         replacements[f'ppt/embeddings/{files["detail"][3]}'] = _make_top100_xlsx(
-            comp, ccol, label_periode, mu)
+            comp, ccol, label_periode, mu, cur_year, prev_year)
 
-        # Fonds de commerce: 3 competitor portfolios
         for i, (pattern, label) in enumerate(COMPETITORS):
             replacements[f'ppt/embeddings/{files["fonds"][i]}'] = _make_competitor_xlsx(
-                df_cible, pattern, label, ccol, mu)
+                df_cible, pattern, label, ccol, mu, cur_year)
 
     return replacements
 
 
 def generate_pptx_report(sections_data, label_periode, is_single_month):
-    """Generate PPTX by cloning template slides and injecting real data.
-
-    sections_data: dict of section_name -> {
-        'comparison', 'res_2026', 'df_cible', 'client_col', 'metric_unit', 'data_type'
-    }
-    """
+    """Generate PPTX — années entièrement dynamiques."""
     import copy
     from pptx import Presentation
     from pptx.util import Pt
@@ -1335,15 +1012,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             f"Placez le fichier template dans : {os.path.dirname(template_path)}"
         )
 
-    # Just load the template and modify slides in-place
     out_prs = Presentation(template_path)
-
-    # ── Helper: find shapes in a slide ──
-    def find_shape(slide, name):
-        for sh in slide.shapes:
-            if sh.name == name:
-                return sh
-        return None
 
     def find_table(slide):
         for sh in slide.shapes:
@@ -1359,7 +1028,6 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         return None
 
     def set_textbox_text(shape, new_text):
-        """Replace text in a textbox while preserving formatting of first run."""
         if shape is None:
             return
         for p in shape.text_frame.paragraphs:
@@ -1368,182 +1036,143 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
                 for r in p.runs[1:]:
                     r.text = ""
                 return
-        # Fallback: just set text
         shape.text_frame.paragraphs[0].text = new_text
 
     def replace_period_text(text):
-        """Replace template month/year placeholders with the active report period."""
         if not text:
             return text
-
         month_names = list(MOIS_NUM_TO_NAME.values())
-        month_names_upper = [month.upper() for month in month_names]
+        month_names_upper = [m.upper() for m in month_names]
         period_upper = label_periode.upper()
         period_title = label_periode
         period_month_upper = period_upper.split()[-1] if period_upper else ''
         period_month_title = period_title.split()[-1] if period_title else ''
 
         updated = text
-
-        for month_upper, month_title in zip(month_names_upper, month_names):
-            updated = updated.replace(f'CUMUL A FIN {month_upper}', f'CUMUL A FIN {period_month_upper}')
-            updated = updated.replace(f'Cumul a fin {month_title}', f'Cumul a fin {period_month_title}')
-            updated = updated.replace(f'CUMUL À FIN {month_upper}', f'CUMUL À FIN {period_month_upper}')
-            updated = updated.replace(f'Cumul à fin {month_title}', f'Cumul à fin {period_month_title}')
-
-        for month_upper, month_title in zip(month_names_upper, month_names):
-            updated = updated.replace(f'{month_upper} 2026', f'{period_upper} {current_year}')
-            updated = updated.replace(f'{month_title} 2026', f'{period_title} {current_year}')
-            updated = updated.replace(f'{month_upper} 2025', f'{period_upper} {previous_year}')
-            updated = updated.replace(f'{month_title} 2025', f'{period_title} {previous_year}')
-
-        for month_upper, month_title in zip(month_names_upper, month_names):
-            updated = updated.replace(month_upper, period_upper)
-            updated = updated.replace(month_title, period_title)
-
+        for mu, mt in zip(month_names_upper, month_names):
+            updated = updated.replace(f'CUMUL A FIN {mu}', f'CUMUL A FIN {period_month_upper}')
+            updated = updated.replace(f'Cumul a fin {mt}', f'Cumul a fin {period_month_title}')
+            updated = updated.replace(f'CUMUL À FIN {mu}', f'CUMUL À FIN {period_month_upper}')
+            updated = updated.replace(f'Cumul à fin {mt}', f'Cumul à fin {period_month_title}')
+        for mu, mt in zip(month_names_upper, month_names):
+            updated = updated.replace(f'{mu} {current_year}', f'{period_upper} {current_year}')
+            updated = updated.replace(f'{mt} {current_year}', f'{period_title} {current_year}')
+            updated = updated.replace(f'{mu} {previous_year}', f'{period_upper} {previous_year}')
+            updated = updated.replace(f'{mt} {previous_year}', f'{period_title} {previous_year}')
+        for mu, mt in zip(month_names_upper, month_names):
+            updated = updated.replace(mu, period_upper)
+            updated = updated.replace(mt, period_title)
         return updated
 
     def apply_period_text_to_shape(shape):
-        """Recursively replace template period placeholders in text-bearing shapes."""
         if shape.shape_type == 6:
             for sub_shape in shape.shapes:
                 apply_period_text_to_shape(sub_shape)
             return
-
         if hasattr(shape, 'text') and shape.text:
             new_text = replace_period_text(shape.text)
             if new_text != shape.text and hasattr(shape, 'text_frame'):
                 set_textbox_text(shape, new_text)
 
     def fill_synthese_table(slide, comp, metric_unit, label_per, is_single):
-        """Fill the 2-row KPI summary table on a Synthese slide."""
         tbl = find_table(slide)
         if tbl is None:
             return
-        tm26 = int(comp['Total_Marche_2026'].sum())
-        ta26 = int(comp['AGL_Volume_2026'].sum())
-        pdm26 = f"{round(ta26/tm26*100)}%" if tm26 > 0 else "0%"
-        tm25 = int(comp.get('Total_Marche_2025', pd.Series(0)).sum()) if not is_single else 0
-        ta25 = int(comp.get('AGL_Volume_2025', pd.Series(0)).sum()) if not is_single else 0
-        pdm25 = f"{round(ta25/tm25*100)}%" if tm25 > 0 else "0%"
-        var_m = tm26 - tm25
-        var_a = ta26 - ta25
-        # Header row (row 0) — update period labels
-        h = tbl.cell(0, 0)
-        for p in h.text_frame.paragraphs:
-            for r in p.runs:
-                if 'march' in r.text.lower() and '2026' in r.text.lower():
-                    pass  # keep
-        # Data row (row 1)
-        vals = [f"{tm26:,}".replace(",", " "),
-                f"{ta26:,}".replace(",", " "),
-                pdm26,
-                f"{tm25:,}".replace(",", " "),
-                f"{ta25:,}".replace(",", " "),
-                pdm25,
-                f"{var_m:,}".replace(",", " "),
-                f"{var_a:,}".replace(",", " ")]
+        col_tm_cur = f'Total_Marche_{current_year}'
+        col_ag_cur = f'AGL_Volume_{current_year}'
+        col_tm_prv = f'Total_Marche_{previous_year}'
+        col_ag_prv = f'AGL_Volume_{previous_year}'
+        tm_cur = int(comp[col_tm_cur].sum()) if col_tm_cur in comp.columns else 0
+        ta_cur = int(comp[col_ag_cur].sum()) if col_ag_cur in comp.columns else 0
+        pdm_cur = f"{round(ta_cur/tm_cur*100)}%" if tm_cur > 0 else "0%"
+        tm_prv = int(comp[col_tm_prv].sum()) if (not is_single and col_tm_prv in comp.columns) else 0
+        ta_prv = int(comp[col_ag_prv].sum()) if (not is_single and col_ag_prv in comp.columns) else 0
+        pdm_prv = f"{round(ta_prv/tm_prv*100)}%" if tm_prv > 0 else "0%"
+        var_m = tm_cur - tm_prv
+        var_a = ta_cur - ta_prv
+        vals = [f"{tm_cur:,}".replace(",", " "), f"{ta_cur:,}".replace(",", " "), pdm_cur,
+                f"{tm_prv:,}".replace(",", " "), f"{ta_prv:,}".replace(",", " "), pdm_prv,
+                f"{var_m:,}".replace(",", " "), f"{var_a:,}".replace(",", " ")]
         for c in range(min(len(vals), len(tbl.columns))):
             cell = tbl.cell(1, c)
             for p in cell.text_frame.paragraphs:
                 if p.runs:
                     p.runs[0].text = vals[c]
-                    for r in p.runs[1:]:
-                        r.text = ""
+                    for r in p.runs[1:]: r.text = ""
                 else:
                     p.text = vals[c]
 
     def fill_top20_table(slide, comp, df_cible, client_col, metric_unit, is_single):
-        """Fill the 21-row TOP 20 table (row 0 = header, rows 1-20 = data)."""
         tbl = find_table(slide)
         if tbl is None:
             return
-        unit_up = metric_unit.upper()
-        # Build top 20 data (biggest drop in AGL volume or biggest market)
-        df_c26 = df_cible[df_cible['Année escale'] == current_year]
-        if df_c26.empty:
+        col_tm_cur = f'Total_Marche_{current_year}'
+        col_ag_cur = f'AGL_Volume_{current_year}'
+        col_ag_prv = f'AGL_Volume_{previous_year}'
+        df_c_cur = df_cible[df_cible['Année escale'] == current_year]
+        if df_c_cur.empty:
             return
-        # Get concurrence data
-        dg = df_c26.groupby([client_col, 'Transitaire'])['NOMBRE_TEU'].sum().reset_index()
+        dg = df_c_cur.groupby([client_col, 'Transitaire'])['NOMBRE_TEU'].sum().reset_index()
         do = dg[~dg['Transitaire'].astype(str).str.contains('AFRICA GLOBAL', case=False, na=False)]
         if do.empty:
             tc = pd.DataFrame(columns=[client_col, '1ER_CONC', 'TEUS_CONC'])
         else:
             tc = _select_primary_competitor_rows(do, client_col).rename(
-                columns={'Transitaire': '1ER_CONC', 'NOMBRE_TEU': 'TEUS_CONC'}
-            )
-
+                columns={'Transitaire': '1ER_CONC', 'NOMBRE_TEU': 'TEUS_CONC'})
         merged = pd.merge(comp, tc[[client_col, '1ER_CONC', 'TEUS_CONC']], on=client_col, how='left').fillna(0)
-        merged['VOL_CONC'] = merged['Total_Marche_2026'] - merged['AGL_Volume_2026']
-        # Si aucun concurrent exploitable n'est trouvé, affecter le volume de concurrence à NON APURE
+        merged['VOL_CONC'] = merged[col_tm_cur] - merged[col_ag_cur]
         mask_non_apure = merged['1ER_CONC'].apply(_is_non_apure)
         merged.loc[mask_non_apure & (merged['TEUS_CONC'] <= 0), 'TEUS_CONC'] = merged.loc[mask_non_apure & (merged['TEUS_CONC'] <= 0), 'VOL_CONC']
-        if not is_single and 'AGL_Volume_2025' in merged.columns:
-            merged['Variation'] = merged['AGL_Volume_2026'] - merged['AGL_Volume_2025']
-            # TOP 20 "en baisse": declining AGL clients sorted by competition volume
+        if not is_single and col_ag_prv in merged.columns:
+            merged['Variation'] = merged[col_ag_cur] - merged[col_ag_prv]
             merged = merged[merged['Variation'] < 0]
-            merged = merged.sort_values('VOL_CONC', ascending=False)
-        else:
-            merged = merged.sort_values('VOL_CONC', ascending=False)
-        merged = merged.head(20)
+        merged = merged.sort_values('VOL_CONC', ascending=False).head(20)
 
-        # Column mapping: [#, CLIENT, VOL_2026, AGL_2026, PDM_2026, VOL_CONC, 1ER_CONC, TEUS_CONC, PDM_CONC]
         for i, (_, row) in enumerate(merged.iterrows()):
-            if i >= 20:
-                break
-            r_idx = i + 1  # row 0 is header
-            tm = int(row['Total_Marche_2026'])
-            ta = int(row['AGL_Volume_2026'])
+            if i >= 20: break
+            r_idx = i + 1
+            tm = int(row[col_tm_cur]); ta = int(row[col_ag_cur])
             pdm = f"{round(ta/tm*100)}%" if tm > 0 else "0%"
             vc = int(row['VOL_CONC'])
             conc_name = str(row.get('1ER_CONC', ''))
-            if conc_name in ('0', '0.0', ''):
-                conc_name = 'NON APURE'
+            if conc_name in ('0', '0.0', ''): conc_name = 'NON APURE'
             tc_val = int(row.get('TEUS_CONC', 0))
             pdm_c = f"{round(tc_val/tm*100)}%" if tm > 0 and tc_val > 0 else "0%"
-
-            vals = [str(i + 1), str(row[client_col]),
-                    str(tm), str(ta), pdm,
-                    str(vc), conc_name, str(tc_val), pdm_c]
+            vals = [str(i+1), str(row[client_col]), str(tm), str(ta), pdm, str(vc), conc_name, str(tc_val), pdm_c]
             for c in range(min(len(vals), len(tbl.columns))):
                 if r_idx < len(tbl.rows):
                     cell = tbl.cell(r_idx, c)
                     for p in cell.text_frame.paragraphs:
                         if p.runs:
                             p.runs[0].text = vals[c]
-                            for rn in p.runs[1:]:
-                                rn.text = ""
+                            for rn in p.runs[1:]: rn.text = ""
                         else:
                             p.text = vals[c]
 
-        # Clear remaining rows
         for r_idx in range(len(merged) + 1, len(tbl.rows)):
             for c in range(len(tbl.columns)):
                 cell = tbl.cell(r_idx, c)
                 for p in cell.text_frame.paragraphs:
                     if p.runs:
-                        for rn in p.runs:
-                            rn.text = ""
+                        for rn in p.runs: rn.text = ""
                     else:
                         p.text = ""
 
     def update_comments_text(slide, comp, metric_unit, client_col, is_single):
-        """Update the COMMENTAIRES textbox with analysis of top contributors."""
-        if is_single or 'AGL_Volume_2025' not in comp.columns:
+        col_ag_cur = f'AGL_Volume_{current_year}'
+        col_ag_prv = f'AGL_Volume_{previous_year}'
+        col_tm_cur = f'Total_Marche_{current_year}'
+        col_tm_prv = f'Total_Marche_{previous_year}'
+        if is_single or col_ag_prv not in comp.columns:
             return
         comp_c = comp.copy()
-        comp_c['Variation'] = comp_c['AGL_Volume_2026'] - comp_c['AGL_Volume_2025']
-        comp_c['Var_Marche'] = comp_c['Total_Marche_2026'] - comp_c['Total_Marche_2025']
+        comp_c['Variation'] = comp_c[col_ag_cur] - comp_c[col_ag_prv]
+        comp_c['Var_Marche'] = comp_c[col_tm_cur] - comp_c[col_tm_prv]
         unit = metric_unit
-
-        # Focus on clients where AGL declined (exclure Etat/mines)
         comp_c = comp_c[~comp_c[client_col].apply(_is_excluded_client)]
         declining = comp_c[comp_c['Variation'] < 0].copy()
-        total_loss = int(declining['Variation'].sum())  # negative
-
-        # Top 10 biggest AGL losses (most negative first)
+        total_loss = int(declining['Variation'].sum())
         top10 = declining.nsmallest(10, 'Variation')
-
         lines = [f"Nous notons que les Volumes d'AGL sont en baisse ( {abs(total_loss):,} {unit}).".replace(",", " ")]
         lines.append("Les 10 Principaux Acteurs de cette Baisse sont:")
         lines.append("")
@@ -1553,70 +1182,44 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             market_dir = "Hausse" if market_var >= 0 else "Baisse"
             name = str(row[client_col])[:40]
             lines.append(f"{name} - {agl_loss:,} {unit} ( {market_dir} de {abs(market_var):,} {unit})".replace(",", " "))
-
-        # Find the comments textbox (longest textbox on the slide)
-        best_sh = None
-        best_len = 0
+        best_sh = None; best_len = 0
         for sh in slide.shapes:
             if sh.shape_type == 17 and hasattr(sh, 'text'):
                 if len(sh.text) > best_len and 'notons' in sh.text.lower():
-                    best_len = len(sh.text)
-                    best_sh = sh
+                    best_len = len(sh.text); best_sh = sh
         if best_sh is None:
-            # Try finding by name pattern
             for sh in slide.shapes:
                 if sh.shape_type == 17 and hasattr(sh, 'text') and len(sh.text) > 100:
-                    best_sh = sh
-                    break
+                    best_sh = sh; break
         if best_sh:
             tf = best_sh.text_frame
-            # Keep first paragraph's formatting
-            if tf.paragraphs and tf.paragraphs[0].runs:
-                first_font = tf.paragraphs[0].runs[0].font
-            # Clear and rewrite
             tf.clear()
             for i, line in enumerate(lines):
-                if i == 0:
-                    p = tf.paragraphs[0]
-                else:
-                    p = tf.add_paragraph()
-                r = p.add_run()
-                r.text = line
-                r.font.size = Pt(9)
+                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                r = p.add_run(); r.text = line; r.font.size = Pt(9)
 
     def update_analyse_group(slide, comp, mu, is_single):
-        """Update the 3 analysis summary boxes (100% PDM, Actifs/Inactifs, Hausse/Baisse).
-        Same classification as commit 9 _categorize_clients (95% PDM ratio, active_both).
-        """
+        col_ag_cur = f'AGL_Volume_{current_year}'
+        col_ag_prv = f'AGL_Volume_{previous_year}'
+        col_tm_cur = f'Total_Marche_{current_year}'
+        col_tm_prv = f'Total_Marche_{previous_year}'
         if is_single:
             return
         comp_a = comp.copy()
-        comp_a['Variation'] = comp_a['AGL_Volume_2026'] - comp_a['AGL_Volume_2025']
-
-        # Filter to AGL clients only (same as dashboard comp_agl)
-        comp_a = comp_a[(comp_a['AGL_Volume_2026'] > 0) | (comp_a['AGL_Volume_2025'] > 0)]
-
-        # PDM as ratios (0-1)
-        comp_a['PDM_r_26'] = comp_a.apply(lambda r: r['AGL_Volume_2026'] / r['Total_Marche_2026']
-                                          if r['Total_Marche_2026'] > 0 else 0, axis=1)
-        comp_a['PDM_r_25'] = comp_a.apply(lambda r: r['AGL_Volume_2025'] / r['Total_Marche_2025']
-                                          if r['Total_Marche_2025'] > 0 else 0, axis=1)
-
-        # active_both = market present in both years
-        active_both = comp_a[(comp_a['Total_Marche_2025'] > 0) & (comp_a['Total_Marche_2026'] > 0)]
-        captive = active_both[(active_both['PDM_r_25'] >= 0.95) & (active_both['PDM_r_26'] >= 0.95) &
-                              (active_both['AGL_Volume_2025'] > 0) & (active_both['AGL_Volume_2026'] > 0)]
+        comp_a['Variation'] = comp_a[col_ag_cur] - comp_a[col_ag_prv]
+        comp_a = comp_a[(comp_a[col_ag_cur] > 0) | (comp_a[col_ag_prv] > 0)]
+        comp_a['PDM_r_cur'] = comp_a.apply(lambda r: r[col_ag_cur] / r[col_tm_cur] if r[col_tm_cur] > 0 else 0, axis=1)
+        comp_a['PDM_r_prv'] = comp_a.apply(lambda r: r[col_ag_prv] / r[col_tm_prv] if r[col_tm_prv] > 0 else 0, axis=1)
+        active_both = comp_a[(comp_a[col_tm_prv] > 0) & (comp_a[col_tm_cur] > 0)]
+        captive = active_both[(active_both['PDM_r_prv'] >= 0.95) & (active_both['PDM_r_cur'] >= 0.95) &
+                              (active_both[col_ag_prv] > 0) & (active_both[col_ag_cur] > 0)]
         non_captive = active_both[~active_both.index.isin(captive.index)]
-
-        # Actifs/Inactifs: market-absent one year
-        actifs = comp_a[(comp_a['Total_Marche_2025'] == 0) & (comp_a['AGL_Volume_2026'] > 0)]
-        inactifs = comp_a[(comp_a['Total_Marche_2026'] == 0) & (comp_a['AGL_Volume_2025'] > 0)]
-
+        actifs = comp_a[(comp_a[col_tm_prv] == 0) & (comp_a[col_ag_cur] > 0)]
+        inactifs = comp_a[(comp_a[col_tm_cur] == 0) & (comp_a[col_ag_prv] > 0)]
         pdm100_up = captive[captive['Variation'] >= 0]
         pdm100_down = captive[captive['Variation'] < 0]
         others_up = non_captive[non_captive['Variation'] > 0]
         others_down = non_captive[non_captive['Variation'] < 0]
-
         n_pdm100 = len(pdm100_up) + len(pdm100_down)
         total_pdm100 = int(pdm100_up['Variation'].sum() + pdm100_down['Variation'].sum())
         n_actifs, vol_actifs = len(actifs), int(actifs['Variation'].sum())
@@ -1625,17 +1228,14 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         total_autres = int(others_up['Variation'].sum() + others_down['Variation'].sum())
 
         def _fmt(val):
-            v = int(val)
-            s = f"{abs(v):,}".replace(",", " ")
+            v = int(val); s = f"{abs(v):,}".replace(",", " ")
             return f"+ {s}" if v >= 0 else f"- {s}"
 
         def _get_texts_recursive(group):
             texts = []
             for sh in group.shapes:
-                if sh.shape_type == 6:
-                    texts.extend(_get_texts_recursive(sh))
-                elif hasattr(sh, 'text') and sh.text.strip():
-                    texts.append(sh.text)
+                if sh.shape_type == 6: texts.extend(_get_texts_recursive(sh))
+                elif hasattr(sh, 'text') and sh.text.strip(): texts.append(sh.text)
             return texts
 
         def _set_shape_multiline(shape, text):
@@ -1643,86 +1243,62 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             saved_size, saved_bold, saved_color = None, None, None
             if tf.paragraphs and tf.paragraphs[0].runs:
                 f = tf.paragraphs[0].runs[0].font
-                saved_size = f.size
-                saved_bold = f.bold
-                try:
-                    saved_color = f.color.rgb
-                except:
-                    pass
+                saved_size = f.size; saved_bold = f.bold
+                try: saved_color = f.color.rgb
+                except: pass
             tf.clear()
-            lines = text.split('\n')
-            for i, line in enumerate(lines):
+            for i, line in enumerate(text.split('\n')):
                 p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-                r = p.add_run()
-                r.text = line
-                if saved_size:
-                    r.font.size = saved_size
-                if saved_bold is not None:
-                    r.font.bold = saved_bold
-                if saved_color:
-                    r.font.color.rgb = saved_color
+                r = p.add_run(); r.text = line
+                if saved_size: r.font.size = saved_size
+                if saved_bold is not None: r.font.bold = saved_bold
+                if saved_color: r.font.color.rgb = saved_color
 
-        # Find analysis group (contains "100 %" text)
         analyse_group = None
         for sh in slide.shapes:
             if sh.shape_type == 6:
                 texts = _get_texts_recursive(sh)
                 if any('100 %' in t for t in texts):
-                    analyse_group = sh
-                    break
+                    analyse_group = sh; break
 
         if not analyse_group:
             return
 
-        # Process each sub-group
         for sub in analyse_group.shapes:
-            if sub.shape_type != 6:
-                continue
+            if sub.shape_type != 6: continue
             sub_texts = _get_texts_recursive(sub)
             combined = ' '.join(sub_texts)
-            rects = []
-            for sh in sub.shapes:
-                if sh.shape_type == 1 and hasattr(sh, 'text') and sh.text.strip():
-                    rects.append(sh)
-            if len(rects) < 2:
-                continue
+            rects = [sh for sh in sub.shapes if sh.shape_type == 1 and hasattr(sh, 'text') and sh.text.strip()]
+            if len(rects) < 2: continue
             rects.sort(key=lambda s: len(s.text))
             summary_sh, detail_sh = rects[0], rects[1]
-
             if '100 %' in combined:
-                _set_shape_multiline(summary_sh,
-                    f"{n_pdm100} Clients à 100 % de PDM  {_fmt(total_pdm100)} {mu}")
+                _set_shape_multiline(summary_sh, f"{n_pdm100} Clients à 100 % de PDM  {_fmt(total_pdm100)} {mu}")
                 _set_shape_multiline(detail_sh,
                     f"{len(pdm100_up):02d} Clients qui ont une croissance  {_fmt(int(pdm100_up['Variation'].sum()))} {mu}\n"
                     f"{len(pdm100_down):02d} Clients qui ont une baisse         {_fmt(int(pdm100_down['Variation'].sum()))} {mu}")
             elif 'actifs' in combined.lower() and 'inactifs' in combined.lower():
-                _set_shape_multiline(summary_sh,
-                    f"Clients Actifs et Inactifs  {_fmt(total_ai)} {mu}")
+                _set_shape_multiline(summary_sh, f"Clients Actifs et Inactifs  {_fmt(total_ai)} {mu}")
                 _set_shape_multiline(detail_sh,
                     f"{n_actifs:02d} Clients Actifs en {current_year}        {_fmt(vol_actifs)} {mu}\n"
                     f"{n_inactifs:02d} Clients Inactifs en {current_year}      {_fmt(vol_inactifs)} {mu}")
             else:
-                _set_shape_multiline(summary_sh,
-                    f"Autres Clients en Hausse et en Baisse  {_fmt(total_autres)} {mu}")
+                _set_shape_multiline(summary_sh, f"Autres Clients en Hausse et en Baisse  {_fmt(total_autres)} {mu}")
                 _set_shape_multiline(detail_sh,
                     f"{len(others_up)} Clients qui ont une Hausse    {_fmt(int(others_up['Variation'].sum()))} {mu}\n"
                     f"{len(others_down)} Clients qui ont une baisse      {_fmt(int(others_down['Variation'].sum()))} {mu}")
 
-        # Update POUR RAPPEL text
         for sh in slide.shapes:
             if hasattr(sh, 'text') and 'travaillé en' in sh.text.lower():
                 _set_shape_multiline(sh,
                     f"Actifs   = travaillé en {current_year} et pas en {previous_year}.\nInactifs = pas travaillé en {current_year} et travaillé en {previous_year}")
                 break
 
-    # ── Main: update template slides with section data ──
     slides = list(out_prs.slides)
-
     for slide in slides:
         for sh in slide.shapes:
             apply_period_text_to_shape(sh)
 
-    # Update cover slide title (slide 1) with period using global current_year
     s1 = slides[0]
     for sh in s1.shapes:
         if hasattr(sh, 'text') and sh.text:
@@ -1730,9 +1306,8 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             if new_text != sh.text:
                 set_textbox_text(sh, new_text)
 
-    # Process each section
     section_map = {
-        'Import Maritime':  (2, 3, 4),  # separator, synthese, top20
+        'Import Maritime':  (2, 3, 4),
         'Export Maritime':  (7, 8, 9),
         'Import Aérien':   (12, 13, 14),
     }
@@ -1742,44 +1317,33 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             continue
         sd = sections_data[sec_name]
         comp = sd['comparison']
-        res26 = sd['res_2026']
         df_cible = sd['df_cible']
         ccol = sd['client_col']
         mu = sd['metric_unit']
         sec_single = sd.get('is_single', is_single_month)
 
-        # Synthese slide
         if synth_idx < len(slides):
             synth_slide = slides[synth_idx]
-            # Update title
             title_sh = find_textbox_containing(synth_slide, 'SYNTHESE')
             if title_sh:
-                new_title = replace_period_text(title_sh.text)
-                set_textbox_text(title_sh, new_title)
-            # Fill KPI table
+                set_textbox_text(title_sh, replace_period_text(title_sh.text))
             fill_synthese_table(synth_slide, comp, mu, label_periode, sec_single)
-            # Update comments
             update_comments_text(synth_slide, comp, mu, ccol, sec_single)
-            # Update analysis group (100% PDM, Actifs/Inactifs, Hausse/Baisse)
             update_analyse_group(synth_slide, comp, mu, sec_single)
 
-        # Top 20 slide
         if top20_idx < len(slides):
             top20_slide = slides[top20_idx]
-            # Update title
             title_sh = find_textbox_containing(top20_slide, 'TOP 20')
             if title_sh:
                 set_textbox_text(title_sh, replace_period_text(title_sh.text))
-            # Fill data table
             fill_top20_table(top20_slide, comp, df_cible, ccol, mu, sec_single)
 
     output = io.BytesIO()
     out_prs.save(output)
 
-    # Replace embedded Excel files with generated data
     if not is_single_month:
         import zipfile
-        excel_replacements = _generate_embedded_excels(sections_data, label_periode)
+        excel_replacements = _generate_embedded_excels(sections_data, label_periode, current_year, previous_year)
         if excel_replacements:
             output.seek(0)
             final = io.BytesIO()
@@ -1805,12 +1369,13 @@ if st.session_state.validated:
     client_col = st.session_state.client_col
     is_single_month = st.session_state.is_single_month
 
-    # Extraire les années dynamiquement pour tout le dashboard
+    # ── Années dynamiques — toute la logique s'appuie sur ces deux variables ──
     dashboard_years = sorted(df_source['Année escale'].dropna().unique()) if 'Année escale' in df_source.columns else []
-    current_display_year = int(max(dashboard_years)) if dashboard_years else 2026
+    current_display_year  = int(max(dashboard_years)) if dashboard_years else 2026
     previous_display_year = current_display_year - 1
 
-    mois_dict_ref = {'Janvier':1,'Février':2,'Mars':3,'Avril':4,'Mai':5,'Juin':6,'Juillet':7,'Août':8,'Septembre':9,'Octobre':10,'Novembre':11,'Décembre':12}
+    mois_dict_ref = {'Janvier':1,'Février':2,'Mars':3,'Avril':4,'Mai':5,'Juin':6,
+                     'Juillet':7,'Août':8,'Septembre':9,'Octobre':10,'Novembre':11,'Décembre':12}
     mois_presents_tries = sorted(df_source['Mois escale'].dropna().unique(), key=lambda x: mois_dict_ref.get(x, 99))
 
     with st.expander("PARAMÈTRES ET FILTRES GLOBAUX", expanded=True):
@@ -1820,18 +1385,14 @@ if st.session_state.validated:
         with filter_cols[1]: mois_cible = st.selectbox("PÉRIODE ANALYSÉE", mois_presents_tries)
         with filter_cols[2]:
             if st.session_state.get('data_type') == 'aerien':
-                geo_label = "AÉROPORT D'ORIGINE"
-                geo_col_dash = 'Pays de livraison'
+                geo_label = "AÉROPORT D'ORIGINE"; geo_col_dash = 'Pays de livraison'
             elif has_prise_charge:
-                geo_label = "PAYS DE PRISE EN CHARGE"
-                geo_col_dash = 'Pays de prise en charge'
+                geo_label = "PAYS DE PRISE EN CHARGE"; geo_col_dash = 'Pays de prise en charge'
             else:
-                geo_label = "PAYS DE DESTINATION"
-                geo_col_dash = 'Pays de livraison'
+                geo_label = "PAYS DE DESTINATION"; geo_col_dash = 'Pays de livraison'
             if geo_col_dash in df_source.columns:
                 pays_prise_charge = st.multiselect(geo_label, df_source[geo_col_dash].dropna().unique())
             else: pays_prise_charge = []
-        # Extra: Pays de livraison filter when prise en charge is available
         pays_livraison_extra = []
         if has_prise_charge:
             with filter_cols[3]:
@@ -1846,7 +1407,6 @@ if st.session_state.validated:
                 conditionnements = st.multiselect(cond_label, df_source['Conditionnement'].dropna().unique())
             else: conditionnements = []
 
-    # Application des filtres globaux
     df_all = df_source.copy()
     if pays_prise_charge: df_all = df_all[df_all[geo_col_dash].isin(pays_prise_charge)]
     if pays_livraison_extra and 'Pays de livraison' in df_all.columns:
@@ -1862,24 +1422,27 @@ if st.session_state.validated:
         df_cible = df_all[df_all['Mois escale'] == mois_cible]
         label_periode = mois_cible
 
-    # Extraire les années dynamiquement pour le filtrage des données
+    # Années dynamiques pour le filtrage des données filtrées
     df_years = sorted(df_cible['Année escale'].dropna().unique())
-    df_current_year = int(max(df_years)) if df_years else 2026
+    df_current_year  = int(max(df_years)) if df_years else current_display_year
     df_previous_year = df_current_year - 1
-    
-    res_2026 = get_stats_annee(df_cible[df_cible['Année escale'] == df_current_year], 2026, client_col)
+
+    # Appels à get_stats_annee avec les vraies années issues des données
+    res_cur = get_stats_annee(df_cible[df_cible['Année escale'] == df_current_year], df_current_year, client_col)
     if not is_single_month:
-        res_2025 = get_stats_annee(df_cible[df_cible['Année escale'] == df_previous_year], 2025, client_col)
-        comparison = pd.merge(res_2025, res_2026, on=client_col, how='outer').fillna(0)
+        res_prv = get_stats_annee(df_cible[df_cible['Année escale'] == df_previous_year], df_previous_year, client_col)
+        comparison = pd.merge(res_prv, res_cur, on=client_col, how='outer').fillna(0)
     else:
-        comparison = res_2026.copy()
-        comparison['AGL_Volume_2025'] = 0
-        comparison['Total_Marche_2025'] = 0
-        comparison['PDM_2025'] = 0
+        comparison = res_cur.copy()
+        comparison[f'AGL_Volume_{df_previous_year}']   = 0
+        comparison[f'Total_Marche_{df_previous_year}'] = 0
+        comparison[f'PDM_{df_previous_year}']          = 0
+
+    # Alias pour compatibilité avec le code PPTX qui attend res_2026
+    res_2026 = res_cur
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Bouton export PPTX (multi-sections ou dashboard seul) ──
     report_files_list = st.session_state.get('rpt_multi', [])
     has_report_files = len(report_files_list) > 0
 
@@ -1901,21 +1464,17 @@ if st.session_state.validated:
 
                 if has_report_files:
                     _log(f"Demarrage - {len(report_files_list)} fichier(s) detecte(s)")
-
                     mois_dict_rpt = {'Janvier':1,'Février':2,'Mars':3,'Avril':4,'Mai':5,'Juin':6,
                                      'Juillet':7,'Août':8,'Septembre':9,'Octobre':10,'Novembre':11,'Décembre':12}
 
                     for file_obj in report_files_list:
                         fname = file_obj.name
                         _log(f"Analyse de <b>{fname}</b>...")
-
-                        # Auto-detect data type + best sheet by scanning ALL sheets with BOTH types
                         try:
                             xls = pd.ExcelFile(file_obj)
                             sheet_names = xls.sheet_names
                         except Exception as e:
-                            _log(f"Erreur lecture {fname} : {e}", "err")
-                            continue
+                            _log(f"Erreur lecture {fname} : {e}", "err"); continue
 
                         best_sheet, best_score, dtype = sheet_names[0], -1, 'maritime'
                         for s in sheet_names:
@@ -1927,31 +1486,25 @@ if st.session_state.validated:
                                 best_score, best_sheet, dtype = score_mar, s, 'maritime'
                             if score_aer > score_mar and score_aer > best_score:
                                 best_score, best_sheet, dtype = score_aer, s, 'aerien'
-                            # Tiebreaker: use detect_data_type for better accuracy
                             if score_mar == score_aer and score_mar > best_score:
                                 dt = detect_data_type(df_tmp.columns.tolist())
                                 best_score, best_sheet, dtype = score_mar, s, dt
 
                         _log(f"Type detecte : <b>{dtype.upper()}</b>", "ok")
-
                         expected = EXPECTED_COLS_AERIEN if dtype == 'aerien' else EXPECTED_COLS
                         optional = OPTIONAL_COLS_AERIEN if dtype == 'aerien' else OPTIONAL_COLS
-
                         df_raw = pd.read_excel(file_obj, sheet_name=best_sheet)
                         upper_cols = {str(c).upper(): c for c in df_raw.columns}
                         _log(f"Feuille selectionnee : <b>{best_sheet}</b> ({len(df_raw)} lignes)")
 
-                        # Map columns
                         mapping = {}
                         for std_col, aliases in {**expected, **optional}.items():
                             found = next((upper_cols[a] for a in aliases if a in upper_cols), None)
-                            if found:
-                                mapping[std_col] = found
+                            if found: mapping[std_col] = found
 
                         missing = [k for k in expected if k not in mapping]
                         if missing:
-                            _log(f"Colonnes manquantes : {', '.join(missing)} - fichier ignore", "warn")
-                            continue
+                            _log(f"Colonnes manquantes : {', '.join(missing)} - fichier ignore", "warn"); continue
 
                         inverse = {v: k for k, v in mapping.items()}
                         df = df_raw.rename(columns=inverse)
@@ -1964,44 +1517,34 @@ if st.session_state.validated:
                                 mois_numeric = pd.to_numeric(mois_vals, errors='coerce')
                                 if mois_numeric.notna().all():
                                     df['Mois escale'] = mois_numeric.astype(int).map(MOIS_NUM_TO_NAME)
-                            except:
-                                pass
+                            except: pass
 
-                        # Detect flux(es) in file
                         flux_vals = df['I_IMP_E_EXP'].dropna().astype(str).str.upper().str.strip().unique()
                         flux_vals = [v for v in flux_vals if v and v != 'NAN' and len(v) > 0]
                         flux_detected = []
-                        if any(str(v).startswith('I') for v in flux_vals):
-                            flux_detected.append('I')
-                        if any(str(v).startswith('E') for v in flux_vals):
-                            flux_detected.append('E')
+                        if any(str(v).startswith('I') for v in flux_vals): flux_detected.append('I')
+                        if any(str(v).startswith('E') for v in flux_vals): flux_detected.append('E')
                         _log(f"Flux detecte(s) : <b>{', '.join(['Import' if f == 'I' else 'Export' for f in flux_detected])}</b>", "ok")
 
-                        # Auto-detect period from data
                         annees = sorted(df['Année escale'].dropna().unique())
                         mois_present = df['Mois escale'].dropna().unique()
                         mois_tries = sorted(mois_present, key=lambda m: mois_dict_rpt.get(m, 0))
                         dernier_mois = mois_tries[-1] if len(mois_tries) > 0 else 'Janvier'
                         mois_num_max = mois_dict_rpt.get(dernier_mois, 1)
 
-                        # Determine period mode: if multiple months → YTD, single → month
                         if len(mois_tries) > 1:
-                            auto_label = f"YTD {dernier_mois}"
-                            auto_ytd = True
+                            auto_label = f"YTD {dernier_mois}"; auto_ytd = True
                         else:
-                            auto_label = dernier_mois
-                            auto_ytd = False
+                            auto_label = dernier_mois; auto_ytd = False
                         r_single = len(annees) == 1
                         _log(f"Periode detectee : <b>{auto_label} {int(max(annees)) if len(annees) else '?'}</b> | Annees : {[int(a) for a in annees]}", "ok")
 
                         metric_unit = 'Kg' if dtype == 'aerien' else 'Teus'
 
-                        # Process each flux as separate section
                         for flux in flux_detected:
-                            flux_col = df['I_IMP_E_EXP'].fillna('').astype(str).str.upper().str.strip()
-                            df_flux = df[flux_col.str.startswith(flux)].copy()
-                            if df_flux.empty:
-                                continue
+                            flux_col_data = df['I_IMP_E_EXP'].fillna('').astype(str).str.upper().str.strip()
+                            df_flux = df[flux_col_data.str.startswith(flux)].copy()
+                            if df_flux.empty: continue
 
                             flux_name = "Import" if flux == 'I' else "Export"
                             dtype_name = "Aérien" if dtype == 'aerien' else "Maritime"
@@ -2012,15 +1555,12 @@ if st.session_state.validated:
                                 alt = "Chargeur" if r_ccol == "Destinataire" else "Destinataire"
                                 r_ccol = alt if alt in df_flux.columns else None
                                 if r_ccol is None:
-                                    _log(f"{sec_name} : colonne client introuvable - section ignoree", "warn")
-                                    continue
+                                    _log(f"{sec_name} : colonne client introuvable - section ignoree", "warn"); continue
 
-                            # Geo col
                             r_geo_col = 'Pays de livraison'
                             if flux == 'E' and 'Pays de prise en charge' in df_flux.columns:
                                 r_geo_col = 'Pays de prise en charge'
 
-                            # Filter CI only for PPTX report (Hors Transitaires Intégrés)
                             if r_geo_col in df_flux.columns:
                                 ci_mask = df_flux[r_geo_col].astype(str).str.upper().str.contains('IVOIRE', na=False)
                                 n_before = len(df_flux)
@@ -2029,38 +1569,35 @@ if st.session_state.validated:
                                 if n_filtered > 0:
                                     _log(f"{sec_name} : filtre CI applique ({n_filtered} lignes hors CI exclues)")
 
-                            # Filter to detected period
                             if auto_ytd:
-                                valid_m = [m for m in df_flux['Mois escale'].dropna().unique()
-                                           if mois_dict_rpt.get(m, 0) <= mois_num_max]
+                                valid_m = [m for m in df_flux['Mois escale'].dropna().unique() if mois_dict_rpt.get(m, 0) <= mois_num_max]
                                 r_cible = df_flux[df_flux['Mois escale'].isin(valid_m)]
                             else:
                                 r_cible = df_flux[df_flux['Mois escale'] == dernier_mois]
 
                             if r_cible.empty:
-                                _log(f"{sec_name} : aucune donnee pour {auto_label} - section ignoree", "warn")
-                                continue
+                                _log(f"{sec_name} : aucune donnee pour {auto_label} - section ignoree", "warn"); continue
 
-                            # Extraire les années dynamiquement pour le filtrage des données
+                            # Années dynamiques pour chaque section rapport
                             r_years = sorted(r_cible['Année escale'].dropna().unique())
-                            r_current_year = int(max(r_years)) if r_years else 2026
+                            r_current_year  = int(max(r_years)) if r_years else current_display_year
                             r_previous_year = r_current_year - 1
-                            
-                            r_res26 = get_stats_annee(r_cible[r_cible['Année escale'] == r_current_year], 2026, r_ccol)
+
+                            r_res_cur = get_stats_annee(r_cible[r_cible['Année escale'] == r_current_year], r_current_year, r_ccol)
                             if not r_single:
-                                r_res25 = get_stats_annee(r_cible[r_cible['Année escale'] == r_previous_year], 2025, r_ccol)
-                                r_comp = pd.merge(r_res25, r_res26, on=r_ccol, how='outer').fillna(0)
+                                r_res_prv = get_stats_annee(r_cible[r_cible['Année escale'] == r_previous_year], r_previous_year, r_ccol)
+                                r_comp = pd.merge(r_res_prv, r_res_cur, on=r_ccol, how='outer').fillna(0)
                             else:
-                                r_comp = r_res26.copy()
-                                r_comp['AGL_Volume_2025'] = 0
-                                r_comp['Total_Marche_2025'] = 0
-                                r_comp['PDM_2025'] = 0
+                                r_comp = r_res_cur.copy()
+                                r_comp[f'AGL_Volume_{r_previous_year}']   = 0
+                                r_comp[f'Total_Marche_{r_previous_year}'] = 0
+                                r_comp[f'PDM_{r_previous_year}']          = 0
 
                             if sec_name in sections:
                                 _log(f"{sec_name} deja charge - fusion des donnees", "warn")
 
                             sections[sec_name] = {
-                                'comparison': r_comp, 'res_2026': r_res26,
+                                'comparison': r_comp, 'res_2026': r_res_cur,
                                 'df_cible': r_cible, 'client_col': r_ccol,
                                 'metric_unit': metric_unit, 'data_type': dtype,
                                 'is_single': r_single,
@@ -2068,28 +1605,23 @@ if st.session_state.validated:
                             total_vol = int(r_cible['NOMBRE_TEU'].sum())
                             _log(f"<b>{sec_name}</b> - {len(r_cible)} lignes, {total_vol:,} {metric_unit}, {r_cible[r_ccol].nunique()} clients", "ok")
 
-                    # Use auto-detected label for the report
                     if sections:
-                        # Take the broadest period across all sections
                         report_label = auto_label
                         report_single = all(s.get('is_single', False) for s in sections.values())
                     else:
-                        report_label = label_periode
-                        report_single = is_single_month
+                        report_label = label_periode; report_single = is_single_month
                 else:
-                    # Single-section mode: use current dashboard data
                     _log("Mode section unique — utilisation des données du dashboard")
                     dt_label = "Aérien" if st.session_state.get('data_type') == 'aerien' else "Maritime"
-                    flux_label = st.session_state.get('client_col', 'Destinataire')
-                    sec_name = f"{'Import' if flux_label == 'Destinataire' else 'Export'} {dt_label}"
+                    flux_label_s = st.session_state.get('client_col', 'Destinataire')
+                    sec_name = f"{'Import' if flux_label_s == 'Destinataire' else 'Export'} {dt_label}"
                     sections[sec_name] = {
-                        'comparison': comparison, 'res_2026': res_2026,
+                        'comparison': comparison, 'res_2026': res_cur,
                         'df_cible': df_cible, 'client_col': client_col,
                         'metric_unit': st.session_state.get('metric_unit', 'Teus'),
                         'data_type': st.session_state.get('data_type', 'maritime'),
                     }
-                    report_label = label_periode
-                    report_single = is_single_month
+                    report_label = label_periode; report_single = is_single_month
 
                 if sections:
                     _log(f"Generation du PPTX - {len(sections)} section(s) : {', '.join(sections.keys())}")
@@ -2104,16 +1636,14 @@ if st.session_state.validated:
     with col_info:
         if has_report_files:
             st.caption(f"{len(report_files_list)} fichier(s) chargé(s) — la détection automatique identifiera les sections")
+
     if st.session_state.get('pptx_data'):
         col_dl, _ = st.columns([1, 5])
         with col_dl:
-            # Déterminer l'année dynamiquement pour le nom du fichier
-            years_in_data = sorted(df_source['Année escale'].dropna().unique()) if 'Année escale' in df_source.columns else [2026]
-            report_year = int(max(years_in_data)) if years_in_data else 2026
             st.download_button(
                 label="TÉLÉCHARGER LE RAPPORT",
                 data=st.session_state['pptx_data'],
-                file_name=f"AGL_Rapport_{label_periode.replace(' ', '_')}_{report_year}.pptx",
+                file_name=f"AGL_Rapport_{label_periode.replace(' ', '_')}_{current_display_year}.pptx",
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                 type="primary"
             )
@@ -2123,7 +1653,7 @@ if st.session_state.validated:
     ])
 
     # ─────────────────────────────────────────────
-    #  ONGLET GLOBAL OVERVIEW — Globe interactif
+    #  ONGLET GLOBAL OVERVIEW
     # ─────────────────────────────────────────────
     COUNTRY_COORDS = {
         "COTE D'IVOIRE": (7.54, -5.55), "COTE D IVOIRE": (7.54, -5.55), "IVORY COAST": (7.54, -5.55),
@@ -2150,8 +1680,8 @@ if st.session_state.validated:
         "SAUDI ARABIA": (23.89, 45.08), "QATAR": (25.35, 51.18), "OMAN": (21.47, 55.98),
         "KOWEIT": (29.31, 47.48), "BAHREIN": (26.07, 50.56), "JORDANIE": (30.59, 36.24),
         "LIBAN": (33.85, 35.86), "ISRAEL": (31.05, 34.85), "IRAK": (33.22, 43.68),
-        "IRAN": (32.43, 53.69), "YEMEN": (15.55, 48.52), "YEMEN DU SUD": (15.55, 48.52),
-        "DJIBOUTI": (11.83, 42.59), "SYRIE": (34.80, 38.99),
+        "IRAN": (32.43, 53.69), "YEMEN": (15.55, 48.52), "DJIBOUTI": (11.83, 42.59),
+        "SYRIE": (34.80, 38.99),
         "SENEGAL": (14.50, -14.45), "MALI": (17.57, -4.00), "BURKINA FASO": (12.24, -1.56),
         "GUINEE": (9.95, -9.70), "GUINEE-BISSAU": (11.80, -15.18), "GUINEE EQUATORIALE": (1.65, 10.27),
         "GAMBIE": (13.44, -15.31), "SIERRA LEONE": (8.46, -11.78),
@@ -2159,7 +1689,7 @@ if st.session_state.validated:
         "BENIN": (9.31, 2.32), "NIGER": (17.61, 8.08), "NIGERIA": (9.08, 8.68),
         "CAMEROUN": (7.37, 12.35), "CAMEROON": (7.37, 12.35), "GABON": (-0.80, 11.61),
         "CONGO": (-4.26, 15.28), "CONGO (BRAZZA)": (-4.26, 15.28), "CONGO (BRAZZAVILLE)": (-4.26, 15.28),
-        "REPUBLIQUE DEMOCRATIQUE DU CONGO": (-4.04, 21.76), "RDC": (-4.04, 21.76), "CONGO (KINSHASA)": (-4.04, 21.76),
+        "REPUBLIQUE DEMOCRATIQUE DU CONGO": (-4.04, 21.76), "RDC": (-4.04, 21.76),
         "ANGOLA": (-11.20, 17.87), "MOZAMBIQUE": (-18.67, 35.53),
         "TANZANIE": (-6.37, 34.89), "KENYA": (-0.02, 37.91), "OUGANDA": (1.37, 32.29),
         "ETHIOPIE": (9.15, 40.49), "ERYTHREE": (15.18, 39.78), "SOMALIE": (5.15, 46.20),
@@ -2183,7 +1713,6 @@ if st.session_state.validated:
     }
 
     def _normalize_country(name):
-        """Normalize country name for lookup."""
         if pd.isna(name): return None
         s = str(name).upper().strip()
         s = s.replace("'", "'").replace("'", "'").replace("\u2019", "'")
@@ -2193,14 +1722,11 @@ if st.session_state.validated:
         norm = _normalize_country(country_name)
         if norm is None: return None
         if norm in COUNTRY_COORDS: return COUNTRY_COORDS[norm]
-        # Fuzzy fallback: check if any key is contained in the name
         for k, v in COUNTRY_COORDS.items():
-            if k in norm or norm in k:
-                return v
+            if k in norm or norm in k: return v
         return None
 
     with tab_globe:
-        # Determine origin and destination columns
         is_export_data = (client_col == 'Chargeur')
         has_prise_charge = 'Pays de prise en charge' in df_cible.columns
         has_livraison = 'Pays de livraison' in df_cible.columns
@@ -2208,7 +1734,6 @@ if st.session_state.validated:
             origin_col = 'Pays de prise en charge' if has_prise_charge else 'Pays de livraison'
             dest_col = 'Pays de livraison' if has_prise_charge else None
         else:
-            # Import: destination = Pays de livraison, origin = Pays de prise en charge si dispo
             origin_col = 'Pays de livraison'
             dest_col = 'Pays de prise en charge' if has_prise_charge else None
 
@@ -2220,7 +1745,6 @@ if st.session_state.validated:
             unit_upper_g = unit_label.upper()
             df_globe = df_cible.copy()
 
-            # ── KPI HERO CARDS ──
             total_vol = df_globe['NOMBRE_TEU'].sum()
             nb_countries = df_globe[origin_col].nunique()
             nb_clients = df_globe[client_col].nunique() if client_col in df_globe.columns else 0
@@ -2248,16 +1772,12 @@ if st.session_state.validated:
             """
             st.markdown(kpi_html, unsafe_allow_html=True)
 
-            # ── Build flows data ──
-            # Aggregate by country
             country_agg = df_globe.groupby(origin_col).agg(
                 Volume=('NOMBRE_TEU', 'sum'),
                 Nb_Clients=(client_col, 'nunique') if client_col in df_globe.columns else ('NOMBRE_TEU', 'count'),
                 Nb_Transitaires=('Transitaire', 'nunique'),
             ).reset_index()
             country_agg.rename(columns={origin_col: 'Pays'}, inplace=True)
-
-            # AGL volume per country
             agl_by_country = df_globe[df_globe['Transitaire'].astype(str).str.contains('AFRICA GLOBAL', case=False, na=False)].groupby(origin_col)['NOMBRE_TEU'].sum().reset_index()
             agl_by_country.columns = ['Pays', 'AGL_Volume']
             country_agg = pd.merge(country_agg, agl_by_country, on='Pays', how='left').fillna(0)
@@ -2269,143 +1789,89 @@ if st.session_state.validated:
             if country_agg.empty:
                 st.warning("Impossible de géolocaliser les pays du dataset.")
             else:
-                # ── GLOBE FIGURE ──
                 fig = go.Figure()
-
-                # If we have dual geo columns (export: origin -> destination), draw flow arcs
                 ci_coords = COUNTRY_COORDS.get("COTE D'IVOIRE", (7.54, -5.55))
                 if dest_col and dest_col in df_globe.columns:
-                    # Dual geo: draw flow arcs between origin and destination countries
                     if is_export_data:
-                        # Export: CI → destination countries
                         flow_agg = df_globe.groupby(dest_col)['NOMBRE_TEU'].sum().reset_index()
-                        flow_agg.columns = ['Dest', 'Volume']
                     else:
-                        # Import: origin countries → CI (using Pays de prise en charge)
                         flow_agg = df_globe.groupby(dest_col)['NOMBRE_TEU'].sum().reset_index()
-                        flow_agg.columns = ['Dest', 'Volume']
+                    flow_agg.columns = ['Dest', 'Volume']
                     flow_agg = flow_agg.sort_values('Volume', ascending=False)
                     fmax = flow_agg['Volume'].max() if not flow_agg.empty else 1
                     for _, frow in flow_agg.iterrows():
                         coords = _get_coords(frow['Dest'])
                         if coords is None: continue
                         if is_export_data:
-                            lat_pair = [ci_coords[0], coords[0]]
-                            lon_pair = [ci_coords[1], coords[1]]
+                            lat_pair = [ci_coords[0], coords[0]]; lon_pair = [ci_coords[1], coords[1]]
                             arrow = f"CI → {frow['Dest']}"
                         else:
-                            lat_pair = [coords[0], ci_coords[0]]
-                            lon_pair = [coords[1], ci_coords[1]]
+                            lat_pair = [coords[0], ci_coords[0]]; lon_pair = [coords[1], ci_coords[1]]
                             arrow = f"{frow['Dest']} → CI"
                         fig.add_trace(go.Scattergeo(
-                            lat=lat_pair, lon=lon_pair,
-                            mode='lines',
-                            line=dict(width=max(0.5, min(4, frow['Volume'] / fmax * 4)),
-                                      color='rgba(229,168,35,0.4)'),
-                            hoverinfo='text',
-                            text=f"{arrow}<br>{int(frow['Volume']):,} {unit_upper_g}",
-                            showlegend=False,
-                        ))
+                            lat=lat_pair, lon=lon_pair, mode='lines',
+                            line=dict(width=max(0.5, min(4, frow['Volume'] / fmax * 4)), color='rgba(229,168,35,0.4)'),
+                            hoverinfo='text', text=f"{arrow}<br>{int(frow['Volume']):,} {unit_upper_g}", showlegend=False))
                 else:
-                    # Single geo column: draw lines from/to CI using country_agg
                     for _, crow in country_agg.iterrows():
                         if is_export_data:
-                            lat_pair = [ci_coords[0], crow['lat']]
-                            lon_pair = [ci_coords[1], crow['lon']]
+                            lat_pair = [ci_coords[0], crow['lat']]; lon_pair = [ci_coords[1], crow['lon']]
                             arrow = f"CI → {crow['Pays']}"
                         else:
-                            lat_pair = [crow['lat'], ci_coords[0]]
-                            lon_pair = [crow['lon'], ci_coords[1]]
+                            lat_pair = [crow['lat'], ci_coords[0]]; lon_pair = [crow['lon'], ci_coords[1]]
                             arrow = f"{crow['Pays']} → CI"
                         fig.add_trace(go.Scattergeo(
-                            lat=lat_pair, lon=lon_pair,
-                            mode='lines',
-                            line=dict(width=max(0.5, min(4, crow['Volume'] / country_agg['Volume'].max() * 4)),
-                                      color='rgba(229,168,35,0.35)'),
-                            hoverinfo='text',
-                            text=f"{arrow}<br>{int(crow['Volume']):,} {unit_upper_g}",
-                            showlegend=False,
-                        ))
+                            lat=lat_pair, lon=lon_pair, mode='lines',
+                            line=dict(width=max(0.5, min(4, crow['Volume'] / country_agg['Volume'].max() * 4)), color='rgba(229,168,35,0.35)'),
+                            hoverinfo='text', text=f"{arrow}<br>{int(crow['Volume']):,} {unit_upper_g}", showlegend=False))
 
-                # Bubble markers for countries
                 max_vol = country_agg['Volume'].max() if not country_agg.empty else 1
                 country_agg['bubble_size'] = (country_agg['Volume'] / max_vol * 35).clip(lower=6)
-                country_agg['color'] = country_agg['PDM'].apply(
-                    lambda p: '#00c851' if p >= 50 else ('#E5A823' if p >= 20 else '#ff5252'))
+                country_agg['color'] = country_agg['PDM'].apply(lambda p: '#00c851' if p >= 50 else ('#E5A823' if p >= 20 else '#ff5252'))
 
                 fig.add_trace(go.Scattergeo(
-                    lat=country_agg['lat'].tolist(),
-                    lon=country_agg['lon'].tolist(),
+                    lat=country_agg['lat'].tolist(), lon=country_agg['lon'].tolist(),
                     mode='markers+text',
-                    marker=dict(
-                        size=country_agg['bubble_size'].tolist(),
-                        color=country_agg['color'].tolist(),
-                        opacity=0.85,
-                        line=dict(width=1, color='white'),
-                        sizemode='diameter',
-                    ),
+                    marker=dict(size=country_agg['bubble_size'].tolist(), color=country_agg['color'].tolist(),
+                                opacity=0.85, line=dict(width=1, color='white'), sizemode='diameter'),
                     text=country_agg['Pays'].apply(lambda x: str(x)[:15]).tolist(),
-                    textposition='top center',
-                    textfont=dict(size=8, color='white'),
+                    textposition='top center', textfont=dict(size=8, color='white'),
                     hovertemplate=(
                         '<b>%{customdata[0]}</b><br>'
                         f'Volume: %{{customdata[1]:,.0f}} {unit_upper_g}<br>'
                         f'AGL: %{{customdata[2]:,.0f}} {unit_upper_g}<br>'
-                        'PDM: %{customdata[3]:.1f}%<br>'
-                        'Clients: %{customdata[4]}<br>'
-                        'Transitaires: %{customdata[5]}'
-                        '<extra></extra>'
-                    ),
+                        'PDM: %{customdata[3]:.1f}%<br>Clients: %{customdata[4]}<br>Transitaires: %{customdata[5]}<extra></extra>'),
                     customdata=country_agg[['Pays', 'Volume', 'AGL_Volume', 'PDM', 'Nb_Clients', 'Nb_Transitaires']].values.tolist(),
-                    showlegend=False,
-                ))
+                    showlegend=False))
 
-                # CI marker (larger, distinct)
                 fig.add_trace(go.Scattergeo(
-                    lat=[ci_coords[0]], lon=[ci_coords[1]],
-                    mode='markers',
+                    lat=[ci_coords[0]], lon=[ci_coords[1]], mode='markers',
                     marker=dict(size=18, color='#E5A823', symbol='star', line=dict(width=2, color='white')),
-                    hovertemplate=f"<b>CÔTE D'IVOIRE</b><br>Hub AGL<extra></extra>",
-                    showlegend=False,
-                ))
+                    hovertemplate=f"<b>CÔTE D'IVOIRE</b><br>Hub AGL<extra></extra>", showlegend=False))
 
-                flux_label = "EXPORT" if is_export_data else "IMPORT"
+                flux_label_g = "EXPORT" if is_export_data else "IMPORT"
                 fig.update_layout(
-                    geo=dict(
-                        projection_type='orthographic',
-                        showland=True, landcolor='#1a1a2e',
-                        showocean=True, oceancolor='#0a0a1a',
-                        showcountries=True, countrycolor='#2a2a4a',
-                        showlakes=True, lakecolor='#0a0a1a',
-                        showcoastlines=True, coastlinecolor='#2a2a4a',
-                        bgcolor='#0a0a1a',
-                        projection_rotation=dict(lon=-5, lat=10),
-                    ),
-                    paper_bgcolor='#0a0a1a',
-                    plot_bgcolor='#0a0a1a',
-                    margin=dict(l=0, r=0, t=40, b=0),
-                    height=600,
+                    geo=dict(projection_type='orthographic', showland=True, landcolor='#1a1a2e',
+                             showocean=True, oceancolor='#0a0a1a', showcountries=True, countrycolor='#2a2a4a',
+                             showlakes=True, lakecolor='#0a0a1a', showcoastlines=True, coastlinecolor='#2a2a4a',
+                             bgcolor='#0a0a1a', projection_rotation=dict(lon=-5, lat=10)),
+                    paper_bgcolor='#0a0a1a', plot_bgcolor='#0a0a1a',
+                    margin=dict(l=0, r=0, t=40, b=0), height=600,
                     title=dict(
-                        text=f"<b>FLUX {flux_label} — {label_periode.upper()} 2026</b>",
-                        font=dict(color='#E5A823', size=16),
-                        x=0.5, xanchor='center',
-                    ),
-                    dragmode='orbit',
-                )
+                        text=f"<b>FLUX {flux_label_g} — {label_periode.upper()} {current_display_year}</b>",
+                        font=dict(color='#E5A823', size=16), x=0.5, xanchor='center'),
+                    dragmode='orbit')
                 st.plotly_chart(fig, use_container_width=True, key="globe_chart")
 
-                # ── TOP COUNTRIES TABLE ──
                 st.markdown("<hr style='border-color:#1a1a2e;margin:10px 0'>", unsafe_allow_html=True)
                 col_tbl, col_chart = st.columns([3, 2], gap="large")
-
                 with col_tbl:
                     st.markdown(f"<b style='color:#E5A823;'>TOP PAYS PAR VOLUME ({unit_upper_g})</b>", unsafe_allow_html=True)
                     top_countries = country_agg.sort_values('Volume', ascending=False).head(20)
                     disp_countries = top_countries[['Pays', 'Volume', 'AGL_Volume', 'PDM', 'Nb_Clients', 'Nb_Transitaires']].copy()
                     disp_countries.columns = ['PAYS', f'VOLUME {unit_upper_g}', f'AGL {unit_upper_g}', 'PDM %', 'CLIENTS', 'TRANSITAIRES']
                     for c in disp_countries.columns:
-                        if c not in ('PAYS',):
-                            disp_countries[c] = disp_countries[c].fillna(0).astype(int)
+                        if c not in ('PAYS',): disp_countries[c] = disp_countries[c].fillna(0).astype(int)
                     disp_countries = disp_countries.reset_index(drop=True)
                     disp_countries.index = disp_countries.index + 1
                     st.dataframe(disp_countries, use_container_width=True, height=400)
@@ -2417,25 +1883,16 @@ if st.session_state.validated:
                     if others_vol > 0:
                         top10 = pd.concat([top10, pd.DataFrame([{'Pays': 'Autres', 'Volume': others_vol}])], ignore_index=True)
                     fig_pie = go.Figure(data=[go.Pie(
-                        labels=top10['Pays'].tolist(),
-                        values=top10['Volume'].tolist(),
-                        hole=0.45,
+                        labels=top10['Pays'].tolist(), values=top10['Volume'].tolist(), hole=0.45,
                         marker=dict(colors=['#E5A823','#f0c040','#00c851','#2196F3','#ff5252',
                                             '#9c27b0','#ff9800','#00bcd4','#8bc34a','#e91e63','#607d8b']),
-                        textinfo='label+percent',
-                        textfont=dict(size=10),
-                        outsidetextfont=dict(size=9),
+                        textinfo='label+percent', textfont=dict(size=10), outsidetextfont=dict(size=9),
                         insidetextorientation='radial',
-                        hovertemplate='<b>%{label}</b><br>%{value:,.0f} ' + unit_upper_g + '<br>%{percent}<extra></extra>',
-                    )])
-                    fig_pie.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                        margin=dict(l=10, r=10, t=10, b=10), height=400,
-                        showlegend=False,
-                    )
+                        hovertemplate='<b>%{label}</b><br>%{value:,.0f} ' + unit_upper_g + '<br>%{percent}<extra></extra>')])
+                    fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                          margin=dict(l=10, r=10, t=10, b=10), height=400, showlegend=False)
                     st.plotly_chart(fig_pie, use_container_width=True, key="pie_chart")
 
-                # ── TOP TRANSITAIRES BAR CHART ──
                 st.markdown("<hr style='border-color:#1a1a2e;margin:10px 0'>", unsafe_allow_html=True)
                 st.markdown(f"<b style='color:#E5A823;'>TOP 15 TRANSITAIRES — VOLUMES {unit_upper_g}</b>", unsafe_allow_html=True)
                 top_trans = df_globe.groupby('Transitaire')['NOMBRE_TEU'].sum().reset_index()
@@ -2443,68 +1900,69 @@ if st.session_state.validated:
                 top_trans['is_agl'] = top_trans['Transitaire'].astype(str).str.contains('AFRICA GLOBAL', case=False, na=False)
                 fig_bar = go.Figure(data=[go.Bar(
                     y=top_trans['Transitaire'].apply(lambda x: str(x)[:35]).tolist(),
-                    x=top_trans['NOMBRE_TEU'].tolist(),
-                    orientation='h',
-                    marker=dict(
-                        color=top_trans['is_agl'].apply(lambda x: '#E5A823' if x else '#2196F3').tolist(),
-                        line=dict(width=0),
-                    ),
-                    hovertemplate='<b>%{y}</b><br>%{x:,.0f} ' + unit_upper_g + '<extra></extra>',
-                )])
-                fig_bar.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    xaxis=dict(gridcolor='#1a1a2e', tickfont=dict(color='#8892b0')),
-                    yaxis=dict(tickfont=dict(color='#8892b0', size=9)),
-                    margin=dict(l=10, r=20, t=10, b=30), height=420,
-                )
+                    x=top_trans['NOMBRE_TEU'].tolist(), orientation='h',
+                    marker=dict(color=top_trans['is_agl'].apply(lambda x: '#E5A823' if x else '#2196F3').tolist(), line=dict(width=0)),
+                    hovertemplate='<b>%{y}</b><br>%{x:,.0f} ' + unit_upper_g + '<extra></extra>')])
+                fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                      xaxis=dict(gridcolor='#1a1a2e', tickfont=dict(color='#8892b0')),
+                                      yaxis=dict(tickfont=dict(color='#8892b0', size=9)),
+                                      margin=dict(l=10, r=20, t=10, b=30), height=420)
                 st.plotly_chart(fig_bar, use_container_width=True, key="bar_transitaires")
 
     # ─────────────────────────────────────────────
-    #  FONCTION DE RENDU DES VUES AVEC ÉDITEUR (DATA_EDITOR)
+    #  FONCTION render_dashboard — entièrement dynamique
     # ─────────────────────────────────────────────
     def render_dashboard(comp_df, prefix_key, is_single, label_per):
         col_ctrl1, col_ctrl2 = st.columns(2)
         with col_ctrl1:
             seuil_pdm = st.slider("SEUIL DE PDM (%) POUR LE RÉSUMÉ :", min_value=10, max_value=100, value=95, step=1, key=f"slider_{prefix_key}")
 
-        years_present = sorted(df_source['Année escale'].dropna().unique()) if 'Année escale' in df_source.columns else []
-        current_display_year = int(max(years_present)) if years_present else 2026
-        
+        # Années dynamiques dans render_dashboard
+        rd_years = sorted(df_source['Année escale'].dropna().unique()) if 'Année escale' in df_source.columns else []
+        rd_cur_year  = int(max(rd_years)) if rd_years else 2026
+        rd_prv_year  = rd_cur_year - 1
+
+        col_ag_cur = f'AGL_Volume_{rd_cur_year}'
+        col_ag_prv = f'AGL_Volume_{rd_prv_year}'
+        col_tm_cur = f'Total_Marche_{rd_cur_year}'
+        col_tm_prv = f'Total_Marche_{rd_prv_year}'
+        col_pd_cur = f'PDM_{rd_cur_year}'
+        col_pd_prv = f'PDM_{rd_prv_year}'
+
         mode_nouveaux = "Stricts (absents du marché l'année précédente)"
         if not is_single:
             with col_ctrl2:
-                mode_nouveaux = st.radio("DÉFINITION DES NOUVEAUX CLIENTS :", ["Stricts (absents du marché l'année précédente)", "Larges (aucun volume AGL l'année précédente)"], key=f"mode_{prefix_key}")
-        
+                mode_nouveaux = st.radio("DÉFINITION DES NOUVEAUX CLIENTS :",
+                    ["Stricts (absents du marché l'année précédente)", "Larges (aucun volume AGL l'année précédente)"],
+                    key=f"mode_{prefix_key}")
+
         st.markdown("<hr style='margin: 10px 0 20px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
 
         if not is_single:
-            comp_df['Variation_Volume'] = comp_df['AGL_Volume_2026'] - comp_df['AGL_Volume_2025']
-            
-            if "Stricts" in mode_nouveaux:
-                m_actifs_new = (comp_df['AGL_Volume_2026'] > 0) & (comp_df['Total_Marche_2025'] == 0)
-                m_inactifs   = (comp_df['AGL_Volume_2025'] > 0) & (comp_df['Total_Marche_2026'] == 0)
-            else:
-                m_actifs_new = (comp_df['AGL_Volume_2026'] > 0) & (comp_df['AGL_Volume_2025'] == 0)
-                m_inactifs   = (comp_df['AGL_Volume_2025'] > 0) & (comp_df['AGL_Volume_2026'] == 0)
-                
-            m_present = ~(m_actifs_new | m_inactifs) & ((comp_df['AGL_Volume_2026'] > 0) | (comp_df['AGL_Volume_2025'] > 0))
+            comp_df['Variation_Volume'] = comp_df[col_ag_cur] - comp_df[col_ag_prv]
 
-            m_seuil = (comp_df['PDM_2026'] >= seuil_pdm) & (comp_df['PDM_2025'] >= seuil_pdm)
-            m_crois = comp_df['Variation_Volume'] >= 0
-            m_baisse = comp_df['Variation_Volume'] < 0
+            if "Stricts" in mode_nouveaux:
+                m_actifs_new = (comp_df[col_ag_cur] > 0) & (comp_df[col_tm_prv] == 0)
+                m_inactifs   = (comp_df[col_ag_prv] > 0) & (comp_df[col_tm_cur] == 0)
+            else:
+                m_actifs_new = (comp_df[col_ag_cur] > 0) & (comp_df[col_ag_prv] == 0)
+                m_inactifs   = (comp_df[col_ag_prv] > 0) & (comp_df[col_ag_cur] == 0)
+
+            m_present = ~(m_actifs_new | m_inactifs) & ((comp_df[col_ag_cur] > 0) | (comp_df[col_ag_prv] > 0))
+            m_seuil   = (comp_df[col_pd_cur] >= seuil_pdm) & (comp_df[col_pd_prv] >= seuil_pdm)
+            m_crois   = comp_df['Variation_Volume'] >= 0
+            m_baisse  = comp_df['Variation_Volume'] < 0
 
             df_100_crois  = comp_df[m_present & m_crois & m_seuil].sort_values('Variation_Volume', ascending=False)
             df_100_baisse = comp_df[m_present & m_baisse & m_seuil].sort_values('Variation_Volume')
-            
             df_aut_crois  = comp_df[m_present & m_crois & ~m_seuil].sort_values('Variation_Volume', ascending=False)
             df_aut_baisse = comp_df[m_present & m_baisse & ~m_seuil].sort_values('Variation_Volume')
-
             df_new  = comp_df[m_actifs_new].sort_values('Variation_Volume', ascending=False)
             df_lost = comp_df[m_inactifs].sort_values('Variation_Volume')
 
-            vol_100 = df_100_crois['Variation_Volume'].sum() + df_100_baisse['Variation_Volume'].sum()
+            vol_100       = df_100_crois['Variation_Volume'].sum() + df_100_baisse['Variation_Volume'].sum()
             vol_act_inact = df_new['Variation_Volume'].sum() + df_lost['Variation_Volume'].sum()
-            vol_aut = df_aut_crois['Variation_Volume'].sum() + df_aut_baisse['Variation_Volume'].sum()
+            vol_aut       = df_aut_crois['Variation_Volume'].sum() + df_aut_baisse['Variation_Volume'].sum()
 
             html_str = f"""
             <div class="agl-summary-block">
@@ -2518,8 +1976,8 @@ if st.session_state.validated:
                 <div class="agl-summary-group">
                     <div class="agl-summary-title"><div class="agl-summary-triangle"></div><span>Clients Actifs et Inactifs {format_delta_html(vol_act_inact)}</span></div>
                     <ul class="agl-summary-list">
-                        <li><b>{len(df_new):02d}</b> Clients Actifs en {current_display_year} {format_delta_html(df_new['Variation_Volume'].sum())}</li>
-                        <li><b>{len(df_lost):02d}</b> Clients Inactifs en {current_display_year} {format_delta_html(df_lost['Variation_Volume'].sum())}</li>
+                        <li><b>{len(df_new):02d}</b> Clients Actifs en {rd_cur_year} {format_delta_html(df_new['Variation_Volume'].sum())}</li>
+                        <li><b>{len(df_lost):02d}</b> Clients Inactifs en {rd_cur_year} {format_delta_html(df_lost['Variation_Volume'].sum())}</li>
                     </ul>
                 </div>
                 <div class="agl-summary-group" style="margin-bottom:0;">
@@ -2536,103 +1994,82 @@ if st.session_state.validated:
             col_g, col_d = st.columns(2, gap="large")
             with col_g:
                 st.markdown(f'<div class="agl-section-title">{ICON_UP} PDM ≥ {seuil_pdm}% · CROISSANCE & STABLES</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_100_crois, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_100c", use_global_names=False)
-                
+                editable_dataframe(format_view_table(df_100_crois, label_per, client_col, rd_cur_year, rd_prv_year), f"{prefix_key}_100c")
                 st.markdown(f'<div class="agl-section-title" style="margin-top:16px">{ICON_UP} NOUVEAUX CLIENTS ACTIFS</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_new, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_new", use_global_names=False)
-                
+                editable_dataframe(format_view_table(df_new, label_per, client_col, rd_cur_year, rd_prv_year), f"{prefix_key}_new")
                 st.markdown(f'<div class="agl-section-title" style="margin-top:16px">{ICON_UP} AUTRES CLIENTS EN HAUSSE & STABLES</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_aut_crois, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_autc", use_global_names=False)
-
+                editable_dataframe(format_view_table(df_aut_crois, label_per, client_col, rd_cur_year, rd_prv_year), f"{prefix_key}_autc")
             with col_d:
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn">{ICON_DOWN} PDM ≥ {seuil_pdm}% · DÉCROISSANCE</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_100_baisse, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_100b", use_global_names=False)
-                
+                editable_dataframe(format_view_table(df_100_baisse, label_per, client_col, rd_cur_year, rd_prv_year), f"{prefix_key}_100b")
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn" style="margin-top:16px">{ICON_DOWN} CLIENTS PERDUS (INACTIFS)</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_lost, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_lost", use_global_names=False)
-                
+                editable_dataframe(format_view_table(df_lost, label_per, client_col, rd_cur_year, rd_prv_year), f"{prefix_key}_lost")
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn" style="margin-top:16px">{ICON_DOWN} AUTRES CLIENTS EN BAISSE</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_aut_baisse, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_autb", use_global_names=False)
-
-        else: 
-            df_100 = comp_df[comp_df['PDM_2026'] >= seuil_pdm].sort_values('AGL_Volume_2026', ascending=False)
-            df_aut = comp_df[comp_df['PDM_2026'] < seuil_pdm].sort_values('AGL_Volume_2026', ascending=False)
-            
+                editable_dataframe(format_view_table(df_aut_baisse, label_per, client_col, rd_cur_year, rd_prv_year), f"{prefix_key}_autb")
+        else:
+            df_100 = comp_df[comp_df[col_pd_cur] >= seuil_pdm].sort_values(col_ag_cur, ascending=False)
+            df_aut = comp_df[comp_df[col_pd_cur] < seuil_pdm].sort_values(col_ag_cur, ascending=False)
             col_g, col_d = st.columns(2, gap="large")
             with col_g:
                 st.markdown(f'<div class="agl-section-title">{ICON_UP} CLIENTS PDM ≥ {seuil_pdm}%</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_100, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_100", use_global_names=False)
+                editable_dataframe(format_view_table(df_100, label_per, client_col, rd_cur_year, rd_prv_year), f"{prefix_key}_100")
             with col_d:
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn">{ICON_DOWN} AUTRES CLIENTS (< {seuil_pdm}%)</div>', unsafe_allow_html=True)
-                editable_dataframe(format_view_table(df_aut, label_per, client_col,df_current_year, df_previous_year), f"{prefix_key}_aut", use_global_names=False)
+                editable_dataframe(format_view_table(df_aut, label_per, client_col, rd_cur_year, rd_prv_year), f"{prefix_key}_aut")
 
     # ─────────────────────────────────────────────
-    #  EXÉCUTION DES ONGLETS
+    #  ONGLETS
     # ─────────────────────────────────────────────
     with tab_agl:
-        # Interface de renommage des colonnes (s'applique à tous les tableaux)
         unit_upper = st.session_state.get('metric_unit', 'Teus').upper()
-        cols_for_rename = ['CLIENTS', f'MARCHÉ {label_periode.upper()} 2026', f'AGL {unit_upper} 2026', 'PDM 2026']
+        cols_for_rename = ['CLIENTS',
+                           f'MARCHÉ {label_periode.upper()} {current_display_year}',
+                           f'AGL {unit_upper} {current_display_year}',
+                           f'PDM {current_display_year}']
         if not is_single_month:
-            cols_for_rename += [f'MARCHÉ {label_periode.upper()} 2025', f'AGL {unit_upper} 2025', 'PDM 2025', 'VARIATION']
+            cols_for_rename += [f'MARCHÉ {label_periode.upper()} {previous_display_year}',
+                                f'AGL {unit_upper} {previous_display_year}',
+                                f'PDM {previous_display_year}', 'VARIATION']
         render_column_rename_interface(cols_for_rename)
-        
-        comp_agl = comparison[(comparison['AGL_Volume_2026'] > 0) | (comparison['AGL_Volume_2025'] > 0)].copy()
+
+        comp_agl = comparison[(comparison[f'AGL_Volume_{df_current_year}'] > 0) |
+                              (comparison[f'AGL_Volume_{df_previous_year}'] > 0)].copy()
         render_dashboard(comp_agl, "agl", is_single_month, label_periode)
-        
+
     with tab_evo:
         trend_data = get_monthly_trend(df_all, client_col)
         if not trend_data.empty:
             clients_list = trend_data[client_col].dropna().unique().tolist()
             if clients_list:
                 selected_client = st.selectbox(f"SÉLECTIONNER UN {client_col.upper()} :", clients_list, key="evo_dest")
-                df_filtered = trend_data[trend_data[client_col] == selected_client].copy()
-                df_filtered = df_filtered.reset_index(drop=True)
-                
+                df_filtered = trend_data[trend_data[client_col] == selected_client].copy().reset_index(drop=True)
                 if not df_filtered.empty:
                     transitaires = df_filtered['Transitaire'].unique()
-
-                    # Palette de couleurs dynamiques pour les concurrents
-                    CONCURRENT_COLORS = [
-                        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-                        "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
-                        "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
-                    ]
-                    color_idx = 0
-                    color_map = {}
+                    CONCURRENT_COLORS = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
+                                         "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf",
+                                         "#aec7e8","#ffbb78","#98df8a","#ff9896","#c5b0d5"]
+                    color_idx = 0; color_map = {}
                     for t in transitaires:
-                        if 'AFRICA GLOBAL' in str(t).upper():
-                            color_map[t] = "#E5A823"
-                        else:
-                            color_map[t] = CONCURRENT_COLORS[color_idx % len(CONCURRENT_COLORS)]
-                            color_idx += 1
-
-                    # Utiliser go.Figure au lieu de px.line pour éviter les problèmes de compatibilité
+                        if 'AFRICA GLOBAL' in str(t).upper(): color_map[t] = "#E5A823"
+                        else: color_map[t] = CONCURRENT_COLORS[color_idx % len(CONCURRENT_COLORS)]; color_idx += 1
                     fig = go.Figure()
                     for transitaire in transitaires:
                         df_trans = df_filtered[df_filtered['Transitaire'] == transitaire]
-                        line_color = color_map.get(transitaire, "#c8d6e8")
-                        line_width = 4 if 'AFRICA GLOBAL' in str(transitaire).upper() else 2
-                        marker_size = 9 if 'AFRICA GLOBAL' in str(transitaire).upper() else 6
-                        fig.add_trace(go.Scatter(
-                            x=df_trans['Date_Label'].tolist(),
-                            y=df_trans['PDM'].tolist(),
-                            mode='lines+markers',
-                            name=str(transitaire),
-                            line=dict(color=line_color, width=line_width),
-                            marker=dict(size=marker_size)
-                        ))
-                    
+                        lc = color_map.get(transitaire, "#c8d6e8")
+                        lw = 4 if 'AFRICA GLOBAL' in str(transitaire).upper() else 2
+                        ms = 9 if 'AFRICA GLOBAL' in str(transitaire).upper() else 6
+                        fig.add_trace(go.Scatter(x=df_trans['Date_Label'].tolist(), y=df_trans['PDM'].tolist(),
+                                                 mode='lines+markers', name=str(transitaire),
+                                                 line=dict(color=lc, width=lw), marker=dict(size=ms)))
                     fig.update_layout(
                         title=f"ÉVOLUTION DE LA PDM — {selected_client}",
-                        font=dict(family="DM Sans, sans-serif", color="#1a2840"), 
+                        font=dict(family="DM Sans, sans-serif", color="#1a2840"),
                         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        margin=dict(t=50, b=30, l=20, r=20), 
+                        margin=dict(t=50, b=30, l=20, r=20),
                         title_font=dict(family="Playfair Display, serif", size=15, color="#001f4d"),
-                        xaxis=dict(gridcolor="#e8eef6", linecolor="#d0d9ea", title=""), 
+                        xaxis=dict(gridcolor="#e8eef6", linecolor="#d0d9ea", title=""),
                         yaxis=dict(gridcolor="#e8eef6", linecolor="#d0d9ea", title="PDM (%)"),
-                        legend=dict(bgcolor="rgba(255,255,255,0.9)", bordercolor="#e2e8f0", borderwidth=1, orientation="v")
-                    )
+                        legend=dict(bgcolor="rgba(255,255,255,0.9)", bordercolor="#e2e8f0", borderwidth=1, orientation="v"))
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("Données insuffisantes pour ce client.")
@@ -2642,89 +2079,83 @@ if st.session_state.validated:
             st.info("Données insuffisantes pour tracer l'évolution temporelle.")
 
     with tab_conc:
-        
-        df_cible_current = df_cible[df_cible['Année escale'] == current_display_year]
+        # Variables dynamiques pour l'onglet concurrence
+        Y = df_current_year
+        P = df_previous_year
+        col_tm_Y = f'Total_Marche_{Y}'
+        col_ag_Y = f'AGL_Volume_{Y}'
+        col_ag_P = f'AGL_Volume_{P}'
+        col_pd_Y = f'PDM_{Y}'
+
+        df_cible_current = df_cible[df_cible['Année escale'] == Y]
         if not df_cible_current.empty:
             df_comp = df_cible_current.groupby([client_col, 'Transitaire'])['NOMBRE_TEU'].sum().reset_index()
             df_others = df_comp[~df_comp['Transitaire'].astype(str).str.contains('AFRICA GLOBAL LOGISTICS', case=False, na=False)]
             top_comp = _select_primary_competitor_rows(df_others, client_col).rename(
-                columns={'Transitaire': '1ER CONCURRENT EN 2026', 'NOMBRE_TEU': 'TEUS 1ER CONCURRENT'}
-            )
+                columns={'Transitaire': f'1ER CONCURRENT EN {Y}', 'NOMBRE_TEU': 'TEUS 1ER CONCURRENT'})
 
-            comp = pd.merge(res_2026, top_comp[[client_col, '1ER CONCURRENT EN 2026', 'TEUS 1ER CONCURRENT']], on=client_col, how='left')
-            comp['VOL. CONCURRENCE'] = comp['Total_Marche_2026'] - comp['AGL_Volume_2026']
-            # Si aucun concurrent exploitable n'est trouvé, affecter le volume de concurrence à NON APURE
-            mask_non_apure = comp['1ER CONCURRENT EN 2026'].apply(_is_non_apure)
-            comp.loc[mask_non_apure & (comp['TEUS 1ER CONCURRENT'].fillna(0) <= 0), 'TEUS 1ER CONCURRENT'] = comp.loc[mask_non_apure & (comp['TEUS 1ER CONCURRENT'].fillna(0) <= 0), 'VOL. CONCURRENCE']
-            comp['PDM CONCURRENT']    = (comp['TEUS 1ER CONCURRENT'] / comp['Total_Marche_2026']) * 100
+            comp = pd.merge(res_cur, top_comp[[client_col, f'1ER CONCURRENT EN {Y}', 'TEUS 1ER CONCURRENT']], on=client_col, how='left')
+            comp['VOL. CONCURRENCE'] = comp[col_tm_Y] - comp[col_ag_Y]
+            mask_non_apure = comp[f'1ER CONCURRENT EN {Y}'].apply(_is_non_apure)
+            comp.loc[mask_non_apure & (comp['TEUS 1ER CONCURRENT'].fillna(0) <= 0), 'TEUS 1ER CONCURRENT'] = \
+                comp.loc[mask_non_apure & (comp['TEUS 1ER CONCURRENT'].fillna(0) <= 0), 'VOL. CONCURRENCE']
+            comp['PDM CONCURRENT'] = (comp['TEUS 1ER CONCURRENT'] / comp[col_tm_Y]) * 100
             comp = comp.fillna(0)
 
-            # Ajouter variation AGL (2026 vs 2025) pour identifier clients en baisse
-            comp = pd.merge(comp, res_2025[[client_col, f'AGL_Volume_{current_display_year-1}']], on=client_col, how='left')
-            comp[f'AGL_Volume_{current_display_year-1}'] = comp[f'AGL_Volume_{current_display_year-1}'].fillna(0)
-            comp['Variation_AGL'] = comp[f'AGL_Volume_{current_display_year}'] - comp[f'AGL_Volume_{current_display_year-1}']
+            # Variation AGL année courante vs année précédente
+            if not is_single_month and col_ag_P in comparison.columns:
+                comp = pd.merge(comp, comparison[[client_col, col_ag_P]], on=client_col, how='left')
+                comp[col_ag_P] = comp[col_ag_P].fillna(0)
+            else:
+                comp[col_ag_P] = 0
+            comp['Variation_AGL'] = comp[col_ag_Y] - comp[col_ag_P]
 
-            # Exclure clients Etat/mines de la concurrence
             comp = comp[~comp[client_col].apply(_is_excluded_client)]
-            # Filtrer : clients EN BAISSE (variation < 0), PDM AGL <= 50%
-            comp_filtered = comp[(comp['Variation_AGL'] < 0) & (comp['PDM_2026'] <= 50)]
-            
+            comp_filtered = comp[(comp['Variation_AGL'] < 0) & (comp[col_pd_Y] <= 50)]
+
             if comp_filtered.empty:
                 st.info("Aucun client en baisse avec PDM AGL ≤ 50% dans cette période.")
             else:
-                # Créer colonne "Variation Marché - AGL TEUS"
-                comp_filtered['Var_Marche_Moins_AGL'] = comp_filtered['Total_Marche_2026'] - comp_filtered['AGL_Volume_2026']
-
-                # Top 20, tri descendant par variation
+                comp_filtered = comp_filtered.copy()
+                comp_filtered['Var_Marche_Moins_AGL'] = comp_filtered[col_tm_Y] - comp_filtered[col_ag_Y]
                 comp_top20 = comp_filtered.nlargest(20, 'Var_Marche_Moins_AGL')
 
-                disp = comp_top20[[client_col, 'Total_Marche_2026', 'AGL_Volume_2026', 'PDM_2026', 'VOL. CONCURRENCE', '1ER CONCURRENT EN 2026', 'TEUS 1ER CONCURRENT', 'PDM CONCURRENT', 'Var_Marche_Moins_AGL']].copy()
                 unit_upper_conc = st.session_state.get('metric_unit', 'Teus').upper()
-                col_marche = f'MARCHÉ {label_periode.upper()} 2026'
-                col_agl = f'AGL {unit_upper_conc} 2026'
-                col_var = f'VAR MARCHÉ - AGL {unit_upper_conc}'
-                disp.columns = ['CLIENTS', col_marche, col_agl, 'PDM AGL', 'VOL. CONCURRENCE', '1ER CONCURRENT 2026', f'{unit_upper_conc} CONCURRENT', 'PDM CONCURRENT', col_var]
-                
-                # Convertir en string AVANT le remplacement pour éviter les types mixtes
-                disp['1ER CONCURRENT 2026'] = (
-                    disp['1ER CONCURRENT 2026']
-                    .astype(str)
-                    .replace('0', 'NON APURE')
-                    .replace('0.0', 'NON APURE')
-                    .replace('', 'NON APURE')
-                )
-                
+                col_marche_disp = f'MARCHÉ {label_periode.upper()} {Y}'
+                col_agl_disp    = f'AGL {unit_upper_conc} {Y}'
+                col_var_disp    = f'VAR MARCHÉ - AGL {unit_upper_conc}'
+                conc_col_name   = f'1ER CONCURRENT {Y}'
+
+                disp = comp_top20[[client_col, col_tm_Y, col_ag_Y, col_pd_Y,
+                                   'VOL. CONCURRENCE', f'1ER CONCURRENT EN {Y}',
+                                   'TEUS 1ER CONCURRENT', 'PDM CONCURRENT', 'Var_Marche_Moins_AGL']].copy()
+                disp.columns = ['CLIENTS', col_marche_disp, col_agl_disp, 'PDM AGL',
+                                'VOL. CONCURRENCE', conc_col_name,
+                                f'{unit_upper_conc} CONCURRENT', 'PDM CONCURRENT', col_var_disp]
+
+                disp[conc_col_name] = (disp[conc_col_name].astype(str)
+                                       .replace('0', 'NON APURE').replace('0.0', 'NON APURE').replace('', 'NON APURE'))
+
                 for col in disp.columns:
                     if any(k in col for k in [unit_upper_conc, 'VOL', 'MARCHÉ', 'PDM', 'VAR']):
                         disp[col] = disp[col].fillna(0).astype(int)
 
                 st.markdown("<hr style='margin: 10px 0 20px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
                 editable_dataframe(disp, "concurrence", has_total_row=False)
-        
         else:
             st.info("Aucune donnée d'analyse concurrentielle pour cette période.")
-                # ------------------------------------------------------------
-        # Gestion de la liste noire des clients (ajout / suppression)
-        # ------------------------------------------------------------
+
+        # ── Liste noire ──
         st.markdown("---")
         st.markdown("###  CLIENTS NON DESIRABLES : GESTION DE LA LISTE NOIRE")
 
-        # Récupérer tous les clients uniques du tableau affiché (ou de l'ensemble des données)
-        # On utilise `comp_filtered` (déjà filtré sur baisse+PDM) pour limiter aux clients pertinents,
-        # mais on peut aussi utiliser `comparison` pour avoir toute la base.
-        # Ici on prend `comp_filtered` car c'est le périmètre visible dans le tableau.
-        all_clients = sorted(comp_filtered[client_col].unique()) if not comp_filtered.empty else []
+        all_clients = sorted(comp_filtered[client_col].unique()) if 'comp_filtered' in dir() and not comp_filtered.empty else []
         if not all_clients:
             st.info("Aucun client disponible pour la selection (aucun client en baisse avec PDM <= 50%).")
         else:
             with st.expander("Selectionner des clients a exclure des analyses", expanded=False):
-                # Multiselect basé sur la liste des clients du tableau
-                selected_for_exclusion = st.multiselect(
-                    "Choisissez les clients a ajouter a la liste noire",
-                    options=all_clients,
-                    default=[],
-                    key="exclusion_multiselect"
-                )
+                selected_for_exclusion = st.multiselect("Choisissez les clients a ajouter a la liste noire",
+                                                         options=all_clients, default=[], key="exclusion_multiselect")
                 col_btn1, col_btn2, col_btn3 = st.columns(3)
                 with col_btn1:
                     if st.button("Ajouter a la liste noire", type="primary"):
@@ -2735,7 +2166,6 @@ if st.session_state.validated:
                         else:
                             st.warning("Aucun client selectionne.")
                 with col_btn2:
-                    # Afficher la liste noire actuelle
                     current_blacklist = load_excluded_clients()
                     if current_blacklist:
                         st.info(f"Liste noire actuelle ({len(current_blacklist)} clients) : {', '.join(current_blacklist[:10])}{'...' if len(current_blacklist)>10 else ''}")
@@ -2747,7 +2177,6 @@ if st.session_state.validated:
                         st.success("Liste noire videe.")
                         st.rerun()
 
-            # Option pour supprimer des clients specifiques de la liste noire
             current_list = load_excluded_clients()
             if current_list:
                 with st.expander("Supprimer des clients de la liste noire", expanded=False):
