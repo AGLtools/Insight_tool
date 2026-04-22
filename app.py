@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import os
 
 _portable_site = os.path.join(os.path.dirname(os.path.abspath(__file__)), "python_portable", "Lib", "site-packages")
@@ -12,6 +12,9 @@ import plotly.graph_objects as go
 import time
 import json
 import io
+
+# Module externe pour la génération du rapport PPTX (page standalone)
+from Insight_generation import render_pptx_page
 
 COLUMN_NAMES_CACHE_FILE = os.path.join(os.path.dirname(__file__), '.column_names_cache.json')
 EXCLUDED_CLIENTS_FILE = os.path.join(os.path.dirname(__file__), 'excluded_clients.json')
@@ -552,111 +555,19 @@ with st.sidebar:
         st.markdown('<div style="padding:20px;text-align:center;color:#E5A823;font-weight:bold;font-size:1.2rem;">AGL Analytics</div>', unsafe_allow_html=True)
 
     st.markdown('<div style="height:1px;background:rgba(229,168,35,.25);margin:12px 0 20px;"></div>', unsafe_allow_html=True)
+
+    # ─── Navigation principale (Dashboard / Rapport PPTX) ─────────────────
+    st.markdown('<div style="font-weight:600;font-size:0.75rem;color:#E5A823;letter-spacing:0.1em;margin-bottom:10px;">MODE</div>', unsafe_allow_html=True)
+    app_mode = st.radio(
+        "Navigation",
+        ["Dashboard", "Rapport PPTX"],
+        key="app_mode",
+        label_visibility="collapsed",
+    )
+    st.markdown('<div style="height:1px;background:rgba(229,168,35,.25);margin:20px 0;"></div>', unsafe_allow_html=True)
+
     st.markdown('<div style="font-weight:600;font-size:0.75rem;color:#E5A823;letter-spacing:0.1em;margin-bottom:10px;">SOURCE DE DONNÉES</div>', unsafe_allow_html=True)
     uploaded_file = st.file_uploader("Fichier Excel (.xlsx)", type=['xlsx'], label_visibility="collapsed", on_change=reset_validation)
-
-    st.markdown('<div style="height:1px;background:rgba(229,168,35,.25);margin:20px 0;"></div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-weight:600;font-size:0.75rem;color:#E5A823;letter-spacing:0.1em;margin-bottom:10px;">DONNÉES RAPPORT PPTX</div>', unsafe_allow_html=True)
-    st.caption("Chargez un ou plusieurs fichiers Excel. Le type (Import/Export, Maritime/Aérien) et la période seront détectés automatiquement.")
-    report_files_uploaded = st.file_uploader("Fichiers rapport", type=['xlsx'], key="rpt_multi", accept_multiple_files=True, label_visibility="collapsed")
-
-    # ── FILTRES AVANCÉS RAPPORT PPTX ─────────────────────────────────────────
-    st.markdown('<div style="height:1px;background:rgba(229,168,35,.15);margin:12px 0;"></div>', unsafe_allow_html=True)
-    with st.expander("FILTRES RAPPORT PPTX", expanded=False):
-        st.caption("Ces filtres s'appliquent uniquement à la génération du rapport PPTX.")
-
-        # FIX: Pays — multiselect dynamique si options dispo, sinon text_input
-        pays_opts = st.session_state.get('rpt_pays_options', [])
-        if pays_opts:
-            report_filter_country_sel = st.multiselect(
-                "Pays",
-                options=pays_opts,
-                key="report_filter_country_multi",
-                help="Sélectionner les pays à inclure (vide = tous)"
-            )
-            # Joindre en un seul mot-clé OU (on prend le premier si un seul)
-            report_filter_country = report_filter_country_sel[0] if len(report_filter_country_sel) == 1 else (
-                '|'.join(report_filter_country_sel) if report_filter_country_sel else ''
-            )
-            st.session_state['report_filter_country'] = report_filter_country
-        else:
-            report_filter_country = st.text_input(
-                "Pays (mot-clé, ex: IVOIRE)",
-                key="report_filter_country",
-                placeholder="Laisser vide = tous les pays"
-            )
-
-        # FIX: Conditionnement/Marchandise — multiselect dynamique si options dispo
-        commodity_opts = st.session_state.get('rpt_commodity_options', [])
-        if commodity_opts:
-            report_filter_commodity_sel = st.multiselect(
-                "Conditionnement / Marchandise",
-                options=commodity_opts,
-                key="report_filter_commodity_multi",
-                help="Sélectionner (vide = tous)"
-            )
-            report_filter_commodity = report_filter_commodity_sel[0] if len(report_filter_commodity_sel) == 1 else (
-                '|'.join(report_filter_commodity_sel) if report_filter_commodity_sel else ''
-            )
-            st.session_state['report_filter_commodity'] = report_filter_commodity
-        else:
-            report_filter_commodity = st.text_input(
-                "Conditionnement / Marchandise",
-                key="report_filter_commodity",
-                placeholder="Laisser vide = tous"
-            )
-
-        report_flux_filter = st.multiselect(
-            "Flux à inclure",
-            options=["Import", "Export"],
-            default=st.session_state.get('report_flux_filter', ["Import", "Export"]),
-            key="report_flux_filter"
-        )
-        report_dtype_filter = st.multiselect(
-            "Type de données",
-            options=["Maritime", "Aérien"],
-            default=st.session_state.get('report_dtype_filter', ["Maritime", "Aérien"]),
-            key="report_dtype_filter"
-        )
-        report_force_ytd = st.checkbox(
-            "Forcer le cumul YTD (tous mois disponibles)",
-            value=st.session_state.get('report_force_ytd', False),
-            key="report_force_ytd"
-        )
-        report_specific_month = st.selectbox(
-            "Forcer un mois spécifique (optionnel)",
-            options=["-- Auto-détection --"] + list(MOIS_NUM_TO_NAME.values()),
-            key="report_specific_month"
-        )
-
-        # Bouton pour scanner les fichiers et peupler les options
-        if report_files_uploaded:
-            if st.button("Scanner les fichiers pour les filtres", type="secondary"):
-                pays_set = set()
-                cond_set = set()
-                for fobj in report_files_uploaded:
-                    try:
-                        df_scan = pd.read_excel(fobj, nrows=2000)
-                        upper_cols_scan = {str(c).upper(): c for c in df_scan.columns}
-                        geo_keys = ['PAYS DE LIVRAISON', 'PAYS DE LIVRA', 'DESTINATION',
-                                    'PAYS DE PRISE EN CHARGE', 'PAYS PRISE EN CHARGE', 'PAYS ORIGINE',
-                                    'AÉROPORT CHARGEMENT', 'AEROPORT CHARGEMENT']
-                        for gk in geo_keys:
-                            if gk in upper_cols_scan:
-                                vals = df_scan[upper_cols_scan[gk]].dropna().astype(str).str.strip().unique()
-                                pays_set.update(v for v in vals if v and v.upper() not in ('NAN', ''))
-                        cond_keys = ['CODE_CONDIT', 'CONDITIONNEMENT', 'TYPE CONTAINER', 'EQUIPEMENT',
-                                     'TAILLE', 'MARCHANDISE', 'COMMODITY', 'DESCRIPTION']
-                        for ck in cond_keys:
-                            if ck in upper_cols_scan:
-                                vals = df_scan[upper_cols_scan[ck]].dropna().astype(str).str.strip().unique()
-                                cond_set.update(v for v in vals if v and v.upper() not in ('NAN', ''))
-                    except:
-                        pass
-                st.session_state['rpt_pays_options'] = sorted(pays_set)
-                st.session_state['rpt_commodity_options'] = sorted(cond_set)
-                st.success(f"{len(pays_set)} pays et {len(cond_set)} conditionnements détectés.")
-                st.rerun()
 
     st.markdown('<div style="height:1px;background:rgba(229,168,35,.25);margin:20px 0;"></div>', unsafe_allow_html=True)
     st.markdown(f'<div style="font-weight:600;font-size:0.75rem;color:#E5A823;letter-spacing:0.1em;margin-bottom:10px;display:flex;align-items:center;gap:8px;">{ICON_SETTINGS} OPTIONS SYSTÈME</div>', unsafe_allow_html=True)
@@ -682,6 +593,12 @@ with st.sidebar:
 # ─────────────────────────────────────────────
 #  5. TOP BAR & IMPORT
 # ─────────────────────────────────────────────
+
+# ── Branche : page Rapport PPTX standalone ──
+if st.session_state.get("app_mode", "Dashboard") == "Rapport PPTX":
+    render_pptx_page(st)
+    st.stop()
+
 st.markdown("""
 <div class="agl-topbar">
   <div>
@@ -1195,9 +1112,15 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         result = text
 
         # Remplacer les paires d'années (ex: 2024/2025 ou 2024-2025)
+        # FIX: ignorer yr_offset=1 si old_cur == previous_year pour éviter
+        # de remplacer l'année précédente correcte (ex: VS 2025 → VS 2026)
         for yr_offset in range(1, 8):
             old_cur = current_year - yr_offset
             old_prv = old_cur - 1
+            # Si old_cur EST l'année précédente, les années sont déjà correctes
+            # dans le template, ne pas les remplacer
+            if old_cur == previous_year:
+                continue
             result = result.replace(f'{old_prv}/{old_cur}', f'{previous_year}/{current_year}')
             result = result.replace(f'{old_prv}-{old_cur}', f'{previous_year}-{current_year}')
             result = result.replace(str(old_cur), str(current_year))
@@ -1387,7 +1310,10 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         merged.loc[mask_non_apure & (merged['TEUS_CONC'] <= 0), 'TEUS_CONC'] = merged.loc[mask_non_apure & (merged['TEUS_CONC'] <= 0), 'VOL_CONC']
         if not is_single and col_ag_prv in merged.columns:
             merged['Variation'] = merged[col_ag_cur] - merged[col_ag_prv]
-            merged = merged[merged['Variation'] < 0]
+            # FIX: appliquer aussi le filtre PDM AGL < 50% (cohérence avec onglet Concurrence)
+            merged['_PDM_cur'] = merged.apply(
+                lambda r: r[col_ag_cur] / r[col_tm_cur] * 100 if r[col_tm_cur] > 0 else 0, axis=1)
+            merged = merged[(merged['Variation'] < 0) & (merged['_PDM_cur'] <= 50)]
         merged = merged.sort_values('VOL_CONC', ascending=False).head(20)
 
         for i, (_, row) in enumerate(merged.iterrows()):
@@ -1615,6 +1541,17 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
 
 
 # ─────────────────────────────────────────────
+#  5c. OVERRIDE — utiliser la version améliorée d'Insight_generation.py
+# ─────────────────────────────────────────────
+# Les fonctions ci-dessus restent disponibles mais sont surchargées par
+# la version refactorisée qui gère le formatage couleur identique au template.
+from Insight_generation import (
+    generate_pptx_report,
+    render_pptx_page,
+)
+
+
+# ─────────────────────────────────────────────
 #  6. DASHBOARD PRINCIPAL
 # ─────────────────────────────────────────────
 if st.session_state.validated:
@@ -1691,330 +1628,6 @@ if st.session_state.validated:
     res_2026 = res_cur
 
     st.markdown("<br>", unsafe_allow_html=True)
-
-    report_files_list = st.session_state.get('rpt_multi', [])
-    has_report_files = len(report_files_list) > 0
-
-    # Lire les filtres depuis la sidebar
-    rpt_filter_country   = st.session_state.get('report_filter_country', '').strip()
-    rpt_filter_commodity = st.session_state.get('report_filter_commodity', '').strip()
-    rpt_flux_filter      = st.session_state.get('report_flux_filter', ['Import', 'Export'])
-    rpt_dtype_filter     = st.session_state.get('report_dtype_filter', ['Maritime', 'Aérien'])
-    rpt_force_ytd        = st.session_state.get('report_force_ytd', False)
-    rpt_specific_month   = st.session_state.get('report_specific_month', '-- Auto-détection --')
-
-    col_export, col_info = st.columns([1, 5])
-    with col_export:
-        btn_label = "GÉNÉRER RAPPORT COMPLET" if has_report_files else "EXPORTER RAPPORT PPTX"
-        if st.button(btn_label, type="secondary"):
-
-            if not has_report_files:
-                st.warning(
-                    "Aucun fichier rapport chargé dans la section **DONNÉES RAPPORT PPTX** de la sidebar. "
-                    "Veuillez charger les fichiers Excel avant de générer le rapport PPTX."
-                )
-
-            log_container = st.container()
-            logs = []
-            def _log(msg, level="info"):
-                logs.append((level, msg))
-                with log_container:
-                    prefix = {"info": "[INFO]", "ok": "[OK]", "warn": "[WARN]", "err": "[ERROR]"}.get(level, "[INFO]")
-                    color = {"info": "#8892b0", "ok": "#00c851", "warn": "#E5A823", "err": "#ff5252"}.get(level, "#8892b0")
-                    st.markdown(f"<div style='font-size:0.82rem;color:{color};padding:2px 0;'>{prefix} {msg}</div>", unsafe_allow_html=True)
-
-            try:
-                sections = {}
-                mois_dict_rpt = {'Janvier':1,'Février':2,'Mars':3,'Avril':4,'Mai':5,'Juin':6,
-                                 'Juillet':7,'Août':8,'Septembre':9,'Octobre':10,'Novembre':11,'Décembre':12}
-
-                if has_report_files:
-                    _log(f"Démarrage - {len(report_files_list)} fichier(s) détecté(s)")
-
-                    filtres_actifs = []
-                    if rpt_filter_country:    filtres_actifs.append(f"Pays: {rpt_filter_country}")
-                    if rpt_filter_commodity:  filtres_actifs.append(f"Marchandise: {rpt_filter_commodity}")
-                    if rpt_force_ytd:         filtres_actifs.append("Cumul YTD forcé")
-                    if rpt_specific_month != '-- Auto-détection --':
-                        filtres_actifs.append(f"Mois forcé: {rpt_specific_month}")
-                    if filtres_actifs:
-                        _log(f"Filtres actifs : {' | '.join(filtres_actifs)}", "ok")
-
-                    auto_label = label_periode  # sera écrasé par le dernier fichier traité
-
-                    for file_obj in report_files_list:
-                        fname = file_obj.name
-                        _log(f"Analyse de <b>{fname}</b>...")
-                        try:
-                            xls = pd.ExcelFile(file_obj)
-                            sheet_names = xls.sheet_names
-                        except Exception as e:
-                            _log(f"Erreur lecture {fname} : {e}", "err"); continue
-
-                        best_sheet, best_score, dtype = sheet_names[0], -1, 'maritime'
-                        for s in sheet_names:
-                            df_tmp = pd.read_excel(file_obj, sheet_name=s, nrows=5)
-                            up = [str(c).upper() for c in df_tmp.columns]
-                            score_mar = sum(1 for al in EXPECTED_COLS.values() if any(a in up for a in al))
-                            score_aer = sum(1 for al in EXPECTED_COLS_AERIEN.values() if any(a in up for a in al))
-                            if score_mar >= score_aer and score_mar > best_score:
-                                best_score, best_sheet, dtype = score_mar, s, 'maritime'
-                            if score_aer > score_mar and score_aer > best_score:
-                                best_score, best_sheet, dtype = score_aer, s, 'aerien'
-                            if score_mar == score_aer and score_mar > best_score:
-                                dt = detect_data_type(df_tmp.columns.tolist())
-                                best_score, best_sheet, dtype = score_mar, s, dt
-
-                        dtype_label_fr = "Aérien" if dtype == 'aerien' else "Maritime"
-                        if dtype_label_fr not in rpt_dtype_filter:
-                            _log(f"Type {dtype_label_fr} exclu par les filtres - fichier ignoré", "warn")
-                            continue
-
-                        _log(f"Type détecté : <b>{dtype.upper()}</b>", "ok")
-                        expected = EXPECTED_COLS_AERIEN if dtype == 'aerien' else EXPECTED_COLS
-                        optional = OPTIONAL_COLS_AERIEN if dtype == 'aerien' else OPTIONAL_COLS
-                        df_raw = pd.read_excel(file_obj, sheet_name=best_sheet)
-                        upper_cols = {str(c).upper(): c for c in df_raw.columns}
-                        _log(f"Feuille sélectionnée : <b>{best_sheet}</b> ({len(df_raw)} lignes)")
-
-                        mapping = {}
-                        for std_col, aliases in {**expected, **optional}.items():
-                            found = next((upper_cols[a] for a in aliases if a in upper_cols), None)
-                            if found: mapping[std_col] = found
-
-                        missing = [k for k in expected if k not in mapping]
-                        if missing:
-                            _log(f"Colonnes manquantes : {', '.join(missing)} - fichier ignoré", "warn"); continue
-
-                        inverse = {v: k for k, v in mapping.items()}
-                        df = df_raw.rename(columns=inverse)
-
-                        # FIX: Normalisation systématique des colonnes numériques et mois
-                        df['NOMBRE_TEU'] = clean_numeric_col(df['NOMBRE_TEU'])
-                        df['Année escale'] = clean_numeric_col(df['Année escale']).astype(int)
-                        # FIX AERIEN: normaliser Mois escale AVANT toute logique de période
-                        df['Mois escale'] = normalize_mois_column(df['Mois escale'])
-
-                        # Filtrage des années aberrantes (< 2000)
-                        df = df[df['Année escale'] >= 2000].copy()
-
-                        # Application des filtres utilisateur
-                        if rpt_filter_country:
-                            geo_cols_possible = ['Pays de livraison', 'Pays de prise en charge']
-                            mask_country = pd.Series([False] * len(df), index=df.index)
-                            for col in geo_cols_possible:
-                                if col in df.columns:
-                                    mask_country = mask_country | df[col].astype(str).str.upper().str.contains(
-                                        rpt_filter_country.upper(), na=False)
-                            n_before = len(df)
-                            df = df[mask_country].copy() if mask_country.any() else df
-                            n_filtered = n_before - len(df)
-                            if n_filtered > 0:
-                                _log(f"Filtre pays '{rpt_filter_country}' : {n_filtered} lignes exclues, {len(df)} restantes", "ok")
-                            elif not mask_country.any():
-                                _log(f"Filtre pays '{rpt_filter_country}' : aucune correspondance", "warn")
-
-                        if rpt_filter_commodity:
-                            if 'Conditionnement' in df.columns:
-                                mask_comm = df['Conditionnement'].astype(str).str.upper().str.contains(
-                                    rpt_filter_commodity.upper(), na=False)
-                                n_before = len(df)
-                                df = df[mask_comm].copy() if mask_comm.any() else df
-                                n_filtered = n_before - len(df)
-                                if n_filtered > 0:
-                                    _log(f"Filtre marchandise '{rpt_filter_commodity}' : {n_filtered} lignes exclues", "ok")
-                                elif not mask_comm.any():
-                                    _log(f"Filtre marchandise '{rpt_filter_commodity}' : aucune correspondance", "warn")
-                            else:
-                                _log("Colonne 'Conditionnement' absente - filtre marchandise ignoré", "warn")
-
-                        if df.empty:
-                            _log(f"Aucune donnée après filtrage - fichier ignoré", "err"); continue
-
-                        flux_vals = df['I_IMP_E_EXP'].dropna().astype(str).str.upper().str.strip().unique()
-                        flux_vals = [v for v in flux_vals if v and v != 'NAN' and len(v) > 0]
-                        flux_detected = []
-                        if any(str(v).startswith('I') for v in flux_vals): flux_detected.append('I')
-                        if any(str(v).startswith('E') for v in flux_vals): flux_detected.append('E')
-
-                        flux_name_map = {'I': 'Import', 'E': 'Export'}
-                        flux_detected = [f for f in flux_detected if flux_name_map.get(f, f) in rpt_flux_filter]
-
-                        if not flux_detected:
-                            _log(f"Aucun flux autorisé dans ce fichier - ignoré", "warn"); continue
-
-                        _log(f"Flux retenus : <b>{', '.join(['Import' if f == 'I' else 'Export' for f in flux_detected])}</b>", "ok")
-
-                        # ── Détection ou forçage de la période ────────────────────────────
-                        annees = sorted(df['Année escale'].dropna().unique())
-                        mois_present = df['Mois escale'].dropna().unique()
-                        # FIX: filtrer les valeurs None/NaN et trier correctement
-                        mois_tries_rpt = sorted(
-                            [m for m in mois_present if m is not None and str(m) not in ('nan', 'None', '')],
-                            key=lambda m: mois_dict_rpt.get(str(m), 0)
-                        )
-
-                        if not mois_tries_rpt:
-                            _log(f"Aucun mois valide détecté - fichier ignoré", "err"); continue
-
-                        if rpt_specific_month != '-- Auto-détection --' and rpt_specific_month in mois_tries_rpt:
-                            dernier_mois = rpt_specific_month
-                            mois_num_max = mois_dict_rpt.get(dernier_mois, 1)
-                            auto_ytd = False
-                            auto_label = dernier_mois
-                            _log(f"Mois forcé : <b>{dernier_mois}</b>", "ok")
-                        elif rpt_force_ytd or len(mois_tries_rpt) > 1:
-                            dernier_mois = mois_tries_rpt[-1]
-                            mois_num_max = mois_dict_rpt.get(dernier_mois, 1)
-                            auto_ytd = True
-                            auto_label = f"YTD {dernier_mois}"
-                            if rpt_force_ytd:
-                                _log(f"Cumul YTD forcé jusqu'à <b>{dernier_mois}</b>", "ok")
-                            else:
-                                _log(f"Cumul YTD auto-détecté : <b>{auto_label}</b>", "ok")
-                        else:
-                            dernier_mois = mois_tries_rpt[-1]
-                            mois_num_max = mois_dict_rpt.get(dernier_mois, 1)
-                            auto_ytd = False
-                            auto_label = dernier_mois
-
-                        r_single = len(annees) == 1
-                        _log(f"Période : <b>{auto_label}</b> | Années : {[int(a) for a in annees]}", "ok")
-
-                        metric_unit = 'Kg' if dtype == 'aerien' else 'Teus'
-
-                        for flux in flux_detected:
-                            flux_col_data = df['I_IMP_E_EXP'].fillna('').astype(str).str.upper().str.strip()
-                            df_flux = df[flux_col_data.str.startswith(flux)].copy()
-                            if df_flux.empty: continue
-
-                            flux_name = "Import" if flux == 'I' else "Export"
-                            dtype_name = "Aérien" if dtype == 'aerien' else "Maritime"
-                            sec_name = f"{flux_name} {dtype_name}"
-                            r_ccol = "Destinataire" if flux == 'I' else "Chargeur"
-
-                            if r_ccol not in df_flux.columns:
-                                alt = "Chargeur" if r_ccol == "Destinataire" else "Destinataire"
-                                r_ccol = alt if alt in df_flux.columns else None
-                                if r_ccol is None:
-                                    _log(f"{sec_name} : colonne client introuvable - section ignorée", "warn"); continue
-
-                            r_geo_col = 'Pays de livraison'
-                            if flux == 'E' and 'Pays de prise en charge' in df_flux.columns:
-                                r_geo_col = 'Pays de prise en charge'
-
-                            # Filtre CI (sauf si filtre pays déjà appliqué)
-                            if not rpt_filter_country and r_geo_col in df_flux.columns:
-                                ci_mask = df_flux[r_geo_col].astype(str).str.upper().str.contains('IVOIRE', na=False)
-                                n_before = len(df_flux)
-                                df_flux = df_flux[ci_mask].copy()
-                                n_filtered = n_before - len(df_flux)
-                                if n_filtered > 0:
-                                    _log(f"{sec_name} : filtre CI appliqué ({n_filtered} lignes hors CI exclues)")
-
-                            # Application du filtre période
-                            if auto_ytd or rpt_force_ytd:
-                                valid_m = [m for m in df_flux['Mois escale'].dropna().unique()
-                                           if mois_dict_rpt.get(str(m), 0) <= mois_num_max]
-                                r_cible = df_flux[df_flux['Mois escale'].isin(valid_m)].copy()
-                            else:
-                                r_cible = df_flux[df_flux['Mois escale'] == dernier_mois].copy()
-
-                            if r_cible.empty:
-                                _log(f"{sec_name} : aucune donnée pour {auto_label} - section ignorée", "warn"); continue
-
-                            r_years = sorted([y for y in r_cible['Année escale'].dropna().unique() if int(y) >= 2000])
-                            if not r_years:
-                                _log(f"{sec_name} : aucune année valide - section ignorée", "warn"); continue
-
-                            r_current_year  = int(max(r_years))
-                            r_previous_year = r_current_year - 1
-
-                            r_res_cur = get_stats_annee(
-                                r_cible[r_cible['Année escale'] == r_current_year], r_current_year, r_ccol)
-                            if not r_single:
-                                r_res_prv = get_stats_annee(
-                                    r_cible[r_cible['Année escale'] == r_previous_year], r_previous_year, r_ccol)
-                                r_comp = pd.merge(r_res_prv, r_res_cur, on=r_ccol, how='outer').fillna(0)
-                            else:
-                                r_comp = r_res_cur.copy()
-                                r_comp[f'AGL_Volume_{r_previous_year}']   = 0
-                                r_comp[f'Total_Marche_{r_previous_year}'] = 0
-                                r_comp[f'PDM_{r_previous_year}']          = 0
-
-                            if sec_name in sections:
-                                _log(f"{sec_name} déjà chargé - fusion des données", "warn")
-
-                            sections[sec_name] = {
-                                'comparison': r_comp, 'res_2026': r_res_cur,
-                                'df_cible': r_cible, 'client_col': r_ccol,
-                                'metric_unit': metric_unit, 'data_type': dtype,
-                                'is_single': r_single,
-                            }
-                            total_vol = int(r_cible['NOMBRE_TEU'].sum())
-                            nb_mois = r_cible['Mois escale'].nunique()
-                            _log(f"<b>{sec_name}</b> — {len(r_cible)} lignes | {total_vol:,} {metric_unit} | {r_cible[r_ccol].nunique()} clients | {nb_mois} mois cumulés", "ok")
-
-                    if sections:
-                        report_label = auto_label
-                        report_single = all(s.get('is_single', False) for s in sections.values())
-                    else:
-                        _log("Aucune section valide détectée dans les fichiers rapport.", "err")
-                        sections = {}
-                        report_label = label_periode
-                        report_single = is_single_month
-
-                else:
-                    _log("Aucun fichier rapport — utilisation des données du dashboard")
-                    dt_label = "Aérien" if st.session_state.get('data_type') == 'aerien' else "Maritime"
-                    flux_label_s = st.session_state.get('client_col', 'Destinataire')
-                    sec_name = f"{'Import' if flux_label_s == 'Destinataire' else 'Export'} {dt_label}"
-                    sections[sec_name] = {
-                        'comparison': comparison, 'res_2026': res_cur,
-                        'df_cible': df_cible, 'client_col': client_col,
-                        'metric_unit': st.session_state.get('metric_unit', 'Teus'),
-                        'data_type': st.session_state.get('data_type', 'maritime'),
-                    }
-                    report_label = label_periode
-                    report_single = is_single_month
-
-                if sections:
-                    _log(f"Génération du PPTX — {len(sections)} section(s) : {', '.join(sections.keys())}")
-                    with st.spinner("Génération du rapport en cours..."):
-                        pptx_data = generate_pptx_report(sections, report_label, report_single)
-                    st.session_state['pptx_data'] = pptx_data
-                    _log("Rapport généré avec succès !", "ok")
-                else:
-                    _log("Impossible de générer le rapport : aucune section valide.", "err")
-
-            except Exception as exc:
-                import traceback
-                _log(f"Erreur lors de la génération : {exc}", "err")
-                _log(f"Détail : {traceback.format_exc()[:500]}", "err")
-
-    with col_info:
-        if has_report_files:
-            filters_summary = []
-            if rpt_filter_country:   filters_summary.append(f"Pays: {rpt_filter_country}")
-            if rpt_filter_commodity: filters_summary.append(f"Marchandise: {rpt_filter_commodity}")
-            if rpt_force_ytd:        filters_summary.append("YTD forcé")
-            if rpt_specific_month != '-- Auto-détection --':
-                filters_summary.append(f"Mois: {rpt_specific_month}")
-            filter_text = " · ".join(filters_summary) if filters_summary else "Aucun filtre actif"
-            st.caption(f"{len(report_files_list)} fichier(s) chargé(s) · {filter_text}")
-        else:
-            st.caption("Chargez des fichiers dans **DONNÉES RAPPORT PPTX** pour générer un rapport complet.")
-
-    if st.session_state.get('pptx_data'):
-        col_dl, _ = st.columns([1, 5])
-        with col_dl:
-            st.download_button(
-                label="TÉLÉCHARGER LE RAPPORT",
-                data=st.session_state['pptx_data'],
-                file_name=f"AGL_Rapport_{label_periode.replace(' ', '_')}_{current_display_year}.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                type="primary"
-            )
 
     tab_globe, tab_agl, tab_evo, tab_conc, tab_raw = st.tabs([
         "GLOBAL OVERVIEW", "FOCUS AGL", "ÉVOLUTION PDM", "CONCURRENCE", "DONNÉES BRUTES"
@@ -2402,6 +2015,75 @@ if st.session_state.validated:
         comp_agl = comparison[(comparison[f'AGL_Volume_{df_current_year}'] > 0) |
                               (comparison[f'AGL_Volume_{df_previous_year}'] > 0)].copy()
         render_dashboard(comp_agl, "agl", is_single_month, label_periode)
+
+        # ── TABLEAUX SECONDAIRES ──────────────────────────────────────────────
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown('<div class="agl-section-title" style="margin-top:8px;">TABLEAUX SECONDAIRES</div>', unsafe_allow_html=True)
+
+        unit_upper_ts = st.session_state.get('metric_unit', 'Teus').upper()
+        col_tm_cur_ts = f'Total_Marche_{df_current_year}'
+        col_ag_cur_ts = f'AGL_Volume_{df_current_year}'
+        col_tm_prv_ts = f'Total_Marche_{df_previous_year}'
+        col_ag_prv_ts = f'AGL_Volume_{df_previous_year}'
+        role_ts = 'IMPORTATEURS' if client_col == 'Destinataire' else 'EXPORTATEURS'
+
+        ts_tab_top100, ts_tab_ceva, ts_tab_sdma, ts_tab_maersk = st.tabs([
+            f"TOP 100 {role_ts}", "PORTEFEUILLE CEVA LOGISTICS", "PORTEFEUILLE SDMA", "PORTEFEUILLE MAERSK"
+        ])
+
+        with ts_tab_top100:
+            st.markdown(f"**TOP 100 {role_ts} — {label_periode.upper()} {df_current_year}**")
+            top100_ts = comparison.copy()
+            top100_ts['_PDM_cur'] = (top100_ts[col_ag_cur_ts] / top100_ts[col_tm_cur_ts].clip(lower=1) * 100).round(1)
+            if not is_single_month and col_ag_prv_ts in top100_ts.columns:
+                top100_ts['_Var'] = (top100_ts[col_ag_cur_ts] - top100_ts[col_ag_prv_ts]).astype(int)
+                top100_ts['_PDM_prv'] = (top100_ts[col_ag_prv_ts] / top100_ts[col_tm_prv_ts].clip(lower=1) * 100).round(1)
+            top100_ts = top100_ts.sort_values(col_tm_cur_ts, ascending=False).head(100)
+
+            disp_top100_cols = [client_col, col_tm_cur_ts, col_ag_cur_ts, '_PDM_cur']
+            disp_top100_names = ['CLIENTS', f'MARCHÉ {unit_upper_ts} {df_current_year}',
+                                 f'AGL {unit_upper_ts} {df_current_year}', f'PDM {df_current_year}']
+            if not is_single_month and col_tm_prv_ts in top100_ts.columns:
+                disp_top100_cols += [col_tm_prv_ts, col_ag_prv_ts, '_PDM_prv', '_Var']
+                disp_top100_names += [f'MARCHÉ {unit_upper_ts} {df_previous_year}',
+                                      f'AGL {unit_upper_ts} {df_previous_year}',
+                                      f'PDM {df_previous_year}', 'VARIATION']
+
+            disp_top100 = top100_ts[disp_top100_cols].copy()
+            disp_top100.columns = disp_top100_names
+            for c in disp_top100.columns:
+                if c != 'CLIENTS':
+                    disp_top100[c] = pd.to_numeric(disp_top100[c], errors='coerce').fillna(0).astype(int)
+            disp_top100 = disp_top100.reset_index(drop=True)
+            disp_top100.index = disp_top100.index + 1
+            col_cfg_ts = {c: st.column_config.NumberColumn(c, format="%d %%")
+                          for c in disp_top100.columns if 'PDM' in c}
+            st.dataframe(disp_top100, use_container_width=True, hide_index=False, column_config=col_cfg_ts, height=500)
+
+        for ts_tab_widget, (pattern, label) in zip(
+            [ts_tab_ceva, ts_tab_sdma, ts_tab_maersk],
+            [('CEVA', 'CEVA LOGISTICS'), ('SDMA', 'SDMA'), ('MAERSK', 'MAERSK')]
+        ):
+            with ts_tab_widget:
+                st.markdown(f"**PORTEFEUILLE {label} — {label_periode.upper()} {df_current_year}**")
+                df_cur_ts = df_cible[df_cible['Année escale'] == df_current_year]
+                cf_ts = df_cur_ts[df_cur_ts['Transitaire'].astype(str).str.contains(pattern, case=False, na=False)]
+                if cf_ts.empty:
+                    st.info(f"Aucune donnée pour {label} sur cette période.")
+                else:
+                    portfolio_ts = cf_ts.groupby(client_col)['NOMBRE_TEU'].sum().reset_index()
+                    portfolio_ts = portfolio_ts.sort_values('NOMBRE_TEU', ascending=False)
+                    total_vol_ts = int(portfolio_ts['NOMBRE_TEU'].sum())
+                    col_ptf_left, col_ptf_right = st.columns([4, 1])
+                    with col_ptf_left:
+                        portfolio_ts.columns = ['CLIENTS', unit_upper_ts]
+                        portfolio_ts[unit_upper_ts] = portfolio_ts[unit_upper_ts].fillna(0).astype(int)
+                        portfolio_ts = portfolio_ts.reset_index(drop=True)
+                        portfolio_ts.index = portfolio_ts.index + 1
+                        st.dataframe(portfolio_ts, use_container_width=True, hide_index=False, height=500)
+                    with col_ptf_right:
+                        st.metric(f"Total {unit_upper_ts}", f"{total_vol_ts:,}".replace(',', ' '))
+                        st.metric("Nb Clients", len(portfolio_ts))
 
     with tab_evo:
         trend_data = get_monthly_trend(df_all, client_col)
