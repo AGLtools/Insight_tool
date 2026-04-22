@@ -8,6 +8,7 @@ d'éviter les imports circulaires.
 """
 import os
 import io
+import re
 import json
 import sys
 
@@ -202,21 +203,17 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
                     client_col, label_per, unit, cur_year, prev_year,
                     right_extra_col=None, layout='actifs'):
     """
-    Reproduit la mise en forme exacte des fichiers Excel embarqués du PPTX original.
-
-    Layouts disponibles (calqués sur les originaux) :
-      - 'captive' : (CLIENTS A 100% PDM) idx col B, client col C, 7 cols D→J
-                                          + idx K, client L, 7 cols M→S
-      - 'actifs'  : (ACTIFS / NON ACTIFS) idx col A, client col B, 7 cols C→I
-                                          + idx J, client K, 7 cols L→R
-      - 'hausses' : (EN HAUSSES / EN BAISSES) idem 'actifs' + col extra T à droite
-
-    Format des en-têtes : 'VOLUME TEUS 3 MOIS 2025' (UNIT avant LABEL)
-    Ordre des années : précédente (2025) PUIS courante (2026).
-    Titres en ligne 2, en-têtes en ligne 3, données à partir de la ligne 4.
+    Reproduit la mise en forme EXACTE du template original :
+      - Titre (gras, taille 10) en ligne 2 : col 2 (gauche) / col 11 (droite)
+      - En-têtes (gras blanc, fond navy 002060) en ligne 4
+      - Données à partir de la ligne 5
+      - Index col 1 (gauche) / col 10 (droite), 1 puis '=1+ref'
+      - Ordre années : COURANTE puis PRÉCÉDENTE (comme original)
+      - Format en-têtes : 'VOLUME TEUS 12 MOIS 2025'
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
 
     wb = Workbook()
     ws = wb.active
@@ -226,27 +223,24 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
 
     thin = Side(style='thin')
     border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
-    title_font = Font(bold=True, size=10)
-    hdr_font = Font(bold=True, size=9)
+    title_font = Font(bold=True, size=10, name='Gill Sans MT')
+    hdr_font = Font(bold=True, size=9, color='FFFFFFFF', name='Gill Sans MT')
+    hdr_fill = PatternFill('solid', fgColor='FF002060')
     hdr_align_c = Alignment(horizontal='center', vertical='center', wrap_text=True)
     hdr_align_l = Alignment(horizontal='left', vertical='center', wrap_text=True)
-    data_font = Font(size=9)
-    data_font_bold = Font(size=9, bold=True)
+    data_font = Font(size=9, name='Gill Sans MT')
+    data_font_bold = Font(size=9, bold=True, name='Gill Sans MT')
     num_align = Alignment(horizontal='center')
     left_align = Alignment(horizontal='left')
     num_fmt = '#,##0'
     pct_fmt = '0%'
 
-    # Coordonnées selon le layout
-    if layout == 'captive':
-        L_IDX, L_CLI, L_TIT = 2, 3, 3
-        R_IDX, R_CLI, R_TIT = 11, 12, 12
-    else:  # 'actifs' / 'hausses'
-        L_IDX, L_CLI, L_TIT = 1, 2, 2
-        R_IDX, R_CLI, R_TIT = 10, 11, 11
+    # Coordonnées identiques pour tous les layouts (alignées sur le template)
+    L_IDX, L_CLI, L_TIT = 1, 2, 2
+    R_IDX, R_CLI, R_TIT = 10, 11, 11
+    HDR_ROW = 4
+    DATA_ROW = 5
 
-    # Largeurs colonnes (calquées sur les originaux)
-    from openpyxl.utils import get_column_letter
     ws.column_dimensions[get_column_letter(L_IDX)].width = 11.43
     ws.column_dimensions[get_column_letter(L_CLI)].width = 50
     for k in range(7):
@@ -260,18 +254,17 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
     ws.cell(2, L_TIT, left_title).font = title_font
     ws.cell(2, R_TIT, right_title).font = title_font
 
-    # En-têtes (ligne 3) — format ORIGINAL : VOLUME TEUS 3 MOIS 2025 (prev d'abord)
+    # En-têtes (ligne 4) — ordre ORIGINAL : COURANTE puis PRÉCÉDENTE
     hdrs = ['CLIENTS',
-            f'VOLUME {u} {lp} {prev_year}', f'AGL {u} {lp} {prev_year}', f'PDM {prev_year}',
             f'VOLUME {u} {lp} {cur_year}',  f'AGL {u} {lp} {cur_year}',  f'PDM {cur_year}',
+            f'VOLUME {u} {lp} {prev_year}', f'AGL {u} {lp} {prev_year}', f'PDM {prev_year}',
             'VARIATION']
     for i, h in enumerate(hdrs):
-        cl = ws.cell(3, L_CLI + i, h)
-        cl.font = hdr_font
-        cl.alignment = hdr_align_l if i == 0 else hdr_align_c; cl.border = border_all
-        cr = ws.cell(3, R_CLI + i, h)
-        cr.font = hdr_font
-        cr.alignment = hdr_align_l if i == 0 else hdr_align_c; cr.border = border_all
+        for base in (L_CLI, R_CLI):
+            cell = ws.cell(HDR_ROW, base + i, h)
+            cell.font = hdr_font; cell.fill = hdr_fill
+            cell.alignment = hdr_align_l if i == 0 else hdr_align_c
+            cell.border = border_all
 
     col_tm_cur = f'Total_Marche_{cur_year}'
     col_ag_cur = f'AGL_Volume_{cur_year}'
@@ -280,12 +273,11 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
 
     def _write_side(df, num_col, data_col, is_right=False):
         for idx, (_, row) in enumerate(df.iterrows()):
-            r = 4 + idx
+            r = DATA_ROW + idx
             tm_cur = int(row.get(col_tm_cur, 0))
             ta_cur = int(row.get(col_ag_cur, 0))
             tm_prv = int(row.get(col_tm_prv, 0))
             ta_prv = int(row.get(col_ag_prv, 0))
-            # Colonne index : 1 puis formule =1+ref
             if idx == 0:
                 c_idx = ws.cell(r, num_col, 1)
             else:
@@ -294,30 +286,30 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
             c_idx.font = data_font; c_idx.number_format = num_fmt; c_idx.alignment = num_align
             c_name = ws.cell(r, data_col, str(row[client_col]))
             c_name.font = data_font; c_name.alignment = left_align; c_name.border = border_all
-            # Volume/AGL prev (offsets 1,2), prev PDM (3), volume/AGL cur (4,5), cur PDM (6)
-            for off, val in [(1, tm_prv), (2, ta_prv), (4, tm_cur), (5, ta_cur)]:
+            # Ordre CUR (1,2) PDM cur (3) PRV (4,5) PDM prv (6) VAR (7)
+            for off, val in [(1, tm_cur), (2, ta_cur), (4, tm_prv), (5, ta_prv)]:
                 cc = ws.cell(r, data_col + off, val)
                 cc.font = data_font; cc.number_format = num_fmt; cc.alignment = num_align; cc.border = border_all
-            c_p_prv = ws.cell(r, data_col + 3, ta_prv / tm_prv if tm_prv > 0 else 0)
-            c_p_prv.font = data_font; c_p_prv.number_format = pct_fmt; c_p_prv.alignment = num_align; c_p_prv.border = border_all
-            c_p_cur = ws.cell(r, data_col + 6, ta_cur / tm_cur if tm_cur > 0 else 0)
+            c_p_cur = ws.cell(r, data_col + 3, ta_cur / tm_cur if tm_cur > 0 else 0)
             c_p_cur.font = data_font; c_p_cur.number_format = pct_fmt; c_p_cur.alignment = num_align; c_p_cur.border = border_all
+            c_p_prv = ws.cell(r, data_col + 6, ta_prv / tm_prv if tm_prv > 0 else 0)
+            c_p_prv.font = data_font; c_p_prv.number_format = pct_fmt; c_p_prv.alignment = num_align; c_p_prv.border = border_all
             c_var = ws.cell(r, data_col + 7, int(ta_cur - ta_prv))
             c_var.font = data_font; c_var.number_format = num_fmt; c_var.alignment = num_align; c_var.border = border_all
             if is_right and right_extra_col and right_extra_col in row.index:
                 c_vm = ws.cell(r, data_col + 8, int(row[right_extra_col]))
                 c_vm.font = data_font; c_vm.number_format = num_fmt; c_vm.alignment = num_align; c_vm.border = border_all
         if len(df) > 0:
-            r = 4 + len(df)
+            r = DATA_ROW + len(df)
             s_cur = int(df[col_tm_cur].sum()); a_cur = int(df[col_ag_cur].sum())
             s_prv = int(df[col_tm_prv].sum()) if col_tm_prv in df.columns else 0
             a_prv = int(df[col_ag_prv].sum()) if col_ag_prv in df.columns else 0
             c_t = ws.cell(r, data_col, 'TOTAL')
             c_t.font = data_font_bold; c_t.alignment = left_align; c_t.border = border_all
-            for off, val in [(1, s_prv), (2, a_prv), (4, s_cur), (5, a_cur)]:
+            for off, val in [(1, s_cur), (2, a_cur), (4, s_prv), (5, a_prv)]:
                 cc = ws.cell(r, data_col + off, val)
                 cc.font = data_font_bold; cc.number_format = num_fmt; cc.alignment = num_align; cc.border = border_all
-            for off, num, den in [(3, a_prv, s_prv), (6, a_cur, s_cur)]:
+            for off, num, den in [(3, a_cur, s_cur), (6, a_prv, s_prv)]:
                 cc = ws.cell(r, data_col + off, num / den if den > 0 else 0)
                 cc.font = data_font_bold; cc.number_format = pct_fmt; cc.alignment = num_align; cc.border = border_all
             cc = ws.cell(r, data_col + 7, int(a_cur - a_prv))
@@ -335,6 +327,8 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
 
 def _categorize_clients(comp, client_col, cur_year, prev_year):
     c = comp.copy()
+    # Liste noire (excluded_clients.json + mots-clés) appliquée comme dans le PPTX original
+    c = c[~c[client_col].apply(_is_excluded_client)]
     col_ag_cur = f'AGL_Volume_{cur_year}'
     col_ag_prv = f'AGL_Volume_{prev_year}'
     col_tm_cur = f'Total_Marche_{cur_year}'
@@ -344,9 +338,12 @@ def _categorize_clients(comp, client_col, cur_year, prev_year):
     c['Var_Marche'] = c[col_tm_cur] - c[col_tm_prv]
     c['PDM_prv'] = c.apply(lambda r: r[col_ag_prv] / r[col_tm_prv] if r[col_tm_prv] > 0 else 0, axis=1)
     c['PDM_cur'] = c.apply(lambda r: r[col_ag_cur] / r[col_tm_cur] if r[col_tm_cur] > 0 else 0, axis=1)
+    # Test PDM sur la valeur ARRONDIE affichée (>= 95%) — aligné sur l'original
+    c['_PDM_prv_pct'] = (c['PDM_prv'] * 100).round().astype(int)
+    c['_PDM_cur_pct'] = (c['PDM_cur'] * 100).round().astype(int)
 
     active_both = c[(c[col_tm_prv] > 0) & (c[col_tm_cur] > 0)]
-    captive = active_both[(active_both['PDM_prv'] >= 0.95) & (active_both['PDM_cur'] >= 0.95) &
+    captive = active_both[(active_both['_PDM_prv_pct'] >= 95) & (active_both['_PDM_cur_pct'] >= 95) &
                           (active_both[col_ag_prv] > 0) & (active_both[col_ag_cur] > 0)]
     non_captive = active_both[~active_both.index.isin(captive.index)]
 
@@ -370,7 +367,7 @@ def _make_top100_xlsx(comp, client_col, label_per, unit, cur_year, prev_year):
     Pas de remplissage de couleur sur les en-têtes (fond blanc).
     """
     from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment, Border, Side
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
     wb = Workbook()
@@ -388,11 +385,12 @@ def _make_top100_xlsx(comp, client_col, label_per, unit, cur_year, prev_year):
 
     thin = Side(style='thin')
     border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
-    title_font = Font(bold=True, size=10)
-    hdr_font = Font(bold=True, size=9)
+    title_font = Font(bold=True, size=10, name='Gill Sans MT')
+    hdr_font = Font(bold=True, size=9, color='FFFFFFFF', name='Gill Sans MT')
+    hdr_fill = PatternFill('solid', fgColor='FF002060')
     hdr_align_c = Alignment(horizontal='center', vertical='center', wrap_text=True)
     hdr_align_l = Alignment(horizontal='left', vertical='center', wrap_text=True)
-    data_font = Font(size=9)
+    data_font = Font(size=9, name='Gill Sans MT')
     num_align = Alignment(horizontal='center')
     left_align = Alignment(horizontal='left')
     num_fmt = '#,##0'
@@ -413,12 +411,12 @@ def _make_top100_xlsx(comp, client_col, label_per, unit, cur_year, prev_year):
             "Variat\u00b0 en unit\u00e9 d'oeuvre AGL CI", "Variat\u00b0 en % AGL CI",
             'PDM N AGL CI', 'PDM N-1 AGL CI']
     for i, h in enumerate(hdrs):
-        cl = ws.cell(3, 2 + i, h)
-        cl.font = hdr_font
+        cl = ws.cell(4, 2 + i, h)
+        cl.font = hdr_font; cl.fill = hdr_fill
         cl.alignment = hdr_align_l if i == 0 else hdr_align_c; cl.border = border_all
 
     for idx, (_, row) in enumerate(top.iterrows()):
-        r = 4 + idx
+        r = 5 + idx
         tm_cur = int(row.get(col_tm_cur, 0)); ta_cur = int(row.get(col_ag_cur, 0))
         tm_prv = int(row.get(col_tm_prv, 0)); ta_prv = int(row.get(col_ag_prv, 0))
         # Index col
@@ -460,11 +458,10 @@ def _make_top100_xlsx(comp, client_col, label_per, unit, cur_year, prev_year):
 def _make_competitor_xlsx(df_cible, pattern, label, client_col, unit, cur_year, label_per='3 MOIS'):
     """
     Portefeuille concurrent au format ORIGINAL :
-      - Titre ligne 3 (B3) avec fond jaune : 'PORTEFEUILLE CLIENTS CEVA TEUS'
-      - En-têtes ligne 5 (B5/C5) : 'CLIENTS' / '3 MOIS 2026'
-      - Données à partir de la ligne 6
-      - Pas de colonne d'index
-      - Total général en bas
+      - Titre ligne 2 (B2) en gras
+      - En-têtes ligne 4 (B4/C4) avec fond navy 002060 + texte blanc
+      - Données à partir de la ligne 5
+      - Pas de colonne d'index, total général en bas.
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -473,7 +470,6 @@ def _make_competitor_xlsx(df_cible, pattern, label, client_col, unit, cur_year, 
     ws = wb.active
     ws.title = 'Feuil1'
     u = unit.upper()
-    lp = label_per.upper()
     df_cur = df_cible[df_cible['Année escale'] == cur_year]
     cf = df_cur[df_cur['Transitaire'].astype(str).str.contains(pattern, case=False, na=False)]
     portfolio = cf.groupby(client_col)['NOMBRE_TEU'].sum().reset_index()
@@ -481,42 +477,42 @@ def _make_competitor_xlsx(df_cible, pattern, label, client_col, unit, cur_year, 
 
     thin = Side(style='thin')
     border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
-    title_font = Font(bold=True, size=10)
-    title_fill = PatternFill('solid', fgColor='FFFF00')  # fond jaune comme l'original
-    hdr_font = Font(bold=True, size=9)
+    title_font = Font(bold=True, size=10, name='Gill Sans MT')
+    hdr_font = Font(bold=True, size=9, color='FFFFFFFF', name='Gill Sans MT')
+    hdr_fill = PatternFill('solid', fgColor='FF002060')
     hdr_align_c = Alignment(horizontal='center', vertical='center')
     hdr_align_l = Alignment(horizontal='left', vertical='center')
-    data_font = Font(size=9)
-    data_font_bold = Font(size=9, bold=True)
+    data_font = Font(size=9, name='Gill Sans MT')
+    data_font_bold = Font(size=9, bold=True, name='Gill Sans MT')
     num_align = Alignment(horizontal='center')
     left_align = Alignment(horizontal='left')
     num_fmt = '#,##0'
 
     ws.column_dimensions['A'].width = 11.43
-    ws.column_dimensions['B'].width = 30
-    ws.column_dimensions['C'].width = 11.43
+    ws.column_dimensions['B'].width = 35
+    ws.column_dimensions['C'].width = 14
     ws.column_dimensions['D'].width = 11.43
 
-    # Titre ligne 3 (B3) avec fond jaune
-    c_title = ws.cell(3, 2, f'PORTEFEUILLE CLIENTS {label} {u}')
-    c_title.font = title_font; c_title.fill = title_fill
+    # Titre ligne 2 (B2) sans remplissage
+    c_title = ws.cell(2, 2, f'PORTEFEUILLE CLIENTS {label} {cur_year} EN {u}')
+    c_title.font = title_font
 
-    # En-têtes ligne 5
-    cl = ws.cell(5, 2, 'CLIENTS')
-    cl.font = hdr_font; cl.alignment = hdr_align_l; cl.border = border_all
-    cr = ws.cell(5, 3, f'{lp} {cur_year}')
-    cr.font = hdr_font; cr.alignment = hdr_align_c; cr.border = border_all
+    # En-têtes ligne 4
+    cl = ws.cell(4, 2, 'CLIENTS')
+    cl.font = hdr_font; cl.fill = hdr_fill; cl.alignment = hdr_align_l; cl.border = border_all
+    cr = ws.cell(4, 3, u)
+    cr.font = hdr_font; cr.fill = hdr_fill; cr.alignment = hdr_align_c; cr.border = border_all
 
-    # Données à partir ligne 6
+    # Données à partir ligne 5
     for idx, (_, row) in enumerate(portfolio.iterrows()):
-        r = 6 + idx
+        r = 5 + idx
         c_name = ws.cell(r, 2, str(row[client_col]))
         c_name.font = data_font; c_name.alignment = left_align; c_name.border = border_all
         c_val = ws.cell(r, 3, int(row['NOMBRE_TEU']))
         c_val.font = data_font; c_val.number_format = num_fmt; c_val.alignment = num_align; c_val.border = border_all
 
     if len(portfolio) > 0:
-        r_total = 6 + len(portfolio)
+        r_total = 5 + len(portfolio)
         c_t = ws.cell(r_total, 2, 'Total général')
         c_t.font = data_font_bold; c_t.alignment = left_align; c_t.border = border_all
         c_tv = ws.cell(r_total, 3, int(portfolio['NOMBRE_TEU'].sum()))
@@ -687,23 +683,41 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             return text
         result = text
         # ── 1) Années ──
+        # Le template contient des années fixes (TEMPLATE_CUR / TEMPLATE_PRV).
+        # On remappe TOUTES les années 4 chiffres rencontrées dans le texte vers
+        # les années réelles des données chargées, en une seule passe regex
+        # (évite les cascades du type "2026"→"2025"→"2024" lors de .replace successifs).
+        TEMPLATE_CUR = 2026
+        TEMPLATE_PRV = 2025
         cur_2 = str(current_year)[-2:]
         prv_2 = str(previous_year)[-2:]
-        for yr_offset in range(1, 25):
-            old_cur = current_year - yr_offset
-            old_prv = old_cur - 1
-            if old_cur == previous_year:
-                continue
-            result = result.replace(f'{old_prv}/{old_cur}', f'{previous_year}/{current_year}')
-            result = result.replace(f'{old_prv}-{old_cur}', f'{previous_year}-{current_year}')
-            result = result.replace(str(old_cur), str(current_year))
-            result = result.replace(str(old_prv), str(previous_year))
-            old_cur_2 = str(old_cur)[-2:]
-            old_prv_2 = str(old_prv)[-2:]
-            if old_cur_2 != cur_2:
-                result = result.replace(f'PDM {old_cur_2}', f'PDM {cur_2}')
-            if old_prv_2 != prv_2:
-                result = result.replace(f'PDM {old_prv_2}', f'PDM {prv_2}')
+        tcur_2 = str(TEMPLATE_CUR)[-2:]
+        tprv_2 = str(TEMPLATE_PRV)[-2:]
+
+        def _remap_year(m):
+            y = int(m.group(0))
+            if y == TEMPLATE_CUR:
+                return str(current_year)
+            if y == TEMPLATE_PRV:
+                return str(previous_year)
+            # Toute autre année 4 chiffres "récente" est aussi normalisée
+            # (ex: vieux templates avec 2024/2023) en suivant son décalage relatif.
+            if 2000 <= y <= 2100:
+                offset = TEMPLATE_CUR - y
+                return str(current_year - offset)
+            return m.group(0)
+
+        # Remplacement des années 4 chiffres (passe unique)
+        result = re.sub(r'\b(20\d{2})\b', _remap_year, result)
+        # Remplacement des PDM XX (2 chiffres) en passe unique également
+        def _remap_pdm(m):
+            yy = m.group(1)
+            if yy == tcur_2:
+                return f'PDM {cur_2}'
+            if yy == tprv_2:
+                return f'PDM {prv_2}'
+            return m.group(0)
+        result = re.sub(r'PDM\s+(\d{2})\b', _remap_pdm, result)
 
         # ── 2) Détection du contexte (forçable depuis l'appelant) ──
         if force_already_has_a_fin is not None or force_title_context is not None:
@@ -725,7 +739,6 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         # ── 3) Remplacement des noms de mois COMPLETS (pass unique via regex pour
         #       éviter de re-substituer un mois introduit par la substitution précédente,
         #       ex: JANVIER → "A FIN MARS" puis MARS qui serait re-remplacé) ──
-        import re
         # Pattern UPPERCASE
         pat_upper = re.compile(r'\b(' + '|'.join(re.escape(m) for m in MOIS_ALL_UPPER) + r')\b')
         result = pat_upper.sub(sub_upper, result)
@@ -1694,7 +1707,7 @@ def build_section_from_filtered_df(df, dtype, flux_letter, period_mode, period_m
 
     metric_unit = 'Kg' if dtype == 'aerien' else 'Teus'
     return sec_name, {
-        'comparison': comp, 'res_2026': res_cur, 'df_cible': df_cible,
+        'comparison': comp, 'res_cur': res_cur, 'df_cible': df_cible,
         'client_col': ccol, 'metric_unit': metric_unit, 'data_type': dtype,
         'is_single': is_single,
     }
