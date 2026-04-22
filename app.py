@@ -1890,6 +1890,24 @@ if st.session_state.validated:
                                       margin=dict(l=10, r=20, t=10, b=30), height=420)
                 st.plotly_chart(fig_bar, use_container_width=True, key="bar_transitaires")
 
+                # ── TABLEAU TOP 20 TRANSITAIRES (même contenu que slide 2 du PPTX) ──
+                try:
+                    from Insight_generation import compute_top20_transitaires_overview
+                    if 'Année escale' in df_globe.columns:
+                        years_avail = sorted(df_globe['Année escale'].dropna().unique().tolist())
+                        if len(years_avail) >= 2:
+                            cur_y = int(years_avail[-1]); prv_y = int(years_avail[-2])
+                            board_df = compute_top20_transitaires_overview(df_globe, cur_y, prv_y)
+                            if not board_df.empty:
+                                st.markdown("<hr style='border-color:#1a1a2e;margin:10px 0'>", unsafe_allow_html=True)
+                                st.markdown(
+                                    f"<b style='color:#E5A823;'>TABLEAU TOP 20 TRANSITAIRES — "
+                                    f"{prv_y} VS {cur_y}</b>",
+                                    unsafe_allow_html=True)
+                                st.dataframe(board_df, use_container_width=True, hide_index=True, height=560)
+                except Exception as _e:
+                    pass
+
     # ─────────────────────────────────────────────
     #  FONCTION render_dashboard
     # ─────────────────────────────────────────────

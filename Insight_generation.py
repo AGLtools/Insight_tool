@@ -113,6 +113,49 @@ def _select_primary_competitor_rows(df_comp, client_col, trans_col='Transitaire'
         return pd.DataFrame(columns=[client_col, trans_col, volume_col])
     return pd.DataFrame(selected_rows)
 
+def compute_top20_transitaires_overview(df, current_year, previous_year, metric_col='NOMBRE_TEU'):
+    """
+    Calcule la vue Top 20 Transitaires (utilisée à la fois sur la slide 2
+    et dans le Dashboard). Retourne un DataFrame prêt à afficher avec :
+    Rang, Transitaire, Volume prv, PDM prv, Volume cur, PDM cur, Variation, Variation %
+    + 3 lignes de totaux (TOP 20, AUTRES, TOTAL MARCHE).
+    """
+    if df is None or df.empty or 'Transitaire' not in df.columns or metric_col not in df.columns:
+        return pd.DataFrame()
+    df_cur = df[df['Année escale'] == current_year]
+    df_prv = df[df['Année escale'] == previous_year]
+    g_cur = df_cur.groupby('Transitaire')[metric_col].sum()
+    g_prv = df_prv.groupby('Transitaire')[metric_col].sum() if not df_prv.empty else pd.Series(dtype=float)
+    merged = pd.concat([g_cur.rename('cur'), g_prv.rename('prv')], axis=1).fillna(0)
+    merged = merged[merged.index.astype(str).str.strip() != '']
+    merged = merged[~merged.index.astype(str).str.upper().isin(['0', 'NAN', 'NONE'])]
+    total_cur = float(merged['cur'].sum()); total_prv = float(merged['prv'].sum())
+    merged = merged.sort_values('cur', ascending=False)
+    top20 = merged.head(20).copy()
+    autres = merged.iloc[20:]
+
+    def _row(name, vol_prv, vol_cur):
+        var_u = vol_cur - vol_prv
+        var_p = (var_u / vol_prv * 100) if vol_prv > 0 else (100.0 if vol_cur > 0 else 0.0)
+        return {
+            'Transitaire': name,
+            f'Volume {previous_year}': int(round(vol_prv)),
+            f'PDM {previous_year} (%)': round(vol_prv / total_prv * 100, 1) if total_prv > 0 else 0.0,
+            f'Volume {current_year}': int(round(vol_cur)),
+            f'PDM {current_year} (%)': round(vol_cur / total_cur * 100, 1) if total_cur > 0 else 0.0,
+            "Variation d'unite": int(round(var_u)),
+            'Variation %': round(var_p, 1),
+        }
+
+    rows = []
+    for i, (name, r) in enumerate(top20.iterrows(), start=1):
+        rows.append({'Rang': i, **_row(str(name), float(r['prv']), float(r['cur']))})
+    rows.append({'Rang': '', **_row('TOP 20 TRANSITAIRES', float(top20['prv'].sum()), float(top20['cur'].sum()))})
+    rows.append({'Rang': '', **_row('AUTRES TRANSITAIRES', float(autres['prv'].sum()), float(autres['cur'].sum()))})
+    rows.append({'Rang': '', **_row('TOTAL MARCHE', total_prv, total_cur)})
+    return pd.DataFrame(rows)
+
+
 def normalize_mois_column(series):
     def _convert(val):
         if pd.isna(val):
@@ -505,21 +548,35 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
 
     # Index du mois (1..12) — utilisé pour le format YTD "N MOIS"
     period_month_idx = MOIS_ALL.index(period_month_name) + 1
+    period_month_upper = period_month_name.upper()
 
-    # Format d'affichage de la période :
-    #  - Mois spécifique : on garde le nom du mois (ex: "MARS 2026")
-    #  - Cumul (YTD)     : on remplace par "N MOIS" (ex: "3 MOIS 2026")
+    # ────────────────────────────────────────────────────────────────────
+    # Nomenclature exacte du rapport original :
+    #
+    # ── Mode mois spécifique (ex: "Mars") ──
+    #   • Titres slides       : "MARS 2026"      / "Mars 2026"
+    #   • En-têtes tableaux   : "Mars 2026"
+    #
+    # ── Mode YTD / Cumul (ex: "3 MOIS") ──
+    #   • Cover               : "CUMUL A FIN MARS 2026 VS 2025"   (déjà "A FIN" dans template)
+    #   • Synthèse + Marché   : "... A FIN MARS 2026"             (ajout de "A FIN")
+    #   • Tableaux + Top 20   : "... 3 MOIS 2026"                 (forme courte)
+    #   • Fonds de commerce   : "... 3 MOIS 2026"                 (forme courte)
+    # ────────────────────────────────────────────────────────────────────
     if is_single_month:
-        period_display_title = period_month_name           # "Mars"
-        period_display_upper = period_month_name.upper()   # "MARS"
-        period_abbrev_title  = ABBREV_BY_FULL.get(period_month_name, period_month_name)  # "Mars"
-        period_abbrev_upper  = period_abbrev_title.upper()  # "MARS"
+        long_upper  = period_month_upper                     # "MARS"
+        long_title  = period_month_name                      # "Mars"
+        short_upper = period_month_upper                     # "MARS"
+        short_title = period_month_name                      # "Mars"
+        abbrev_upper = ABBREV_BY_FULL.get(period_month_name, period_month_name).upper()
+        abbrev_title = ABBREV_BY_FULL.get(period_month_name, period_month_name)
     else:
-        ytd_label = f"{period_month_idx} MOIS"
-        period_display_title = ytd_label                   # "3 MOIS"
-        period_display_upper = ytd_label                   # "3 MOIS"
-        period_abbrev_title  = ytd_label                   # "3 MOIS"
-        period_abbrev_upper  = ytd_label                   # "3 MOIS"
+        long_upper  = f"A FIN {period_month_upper}"          # "A FIN MARS"
+        long_title  = f"A fin {period_month_name}"           # "A fin Mars"
+        short_upper = f"{period_month_idx} MOIS"             # "3 MOIS"
+        short_title = f"{period_month_idx} MOIS"
+        abbrev_upper = f"{period_month_idx} MOIS"
+        abbrev_title = f"{period_month_idx} MOIS"
 
     if not os.path.isfile(TEMPLATE_FILE):
         available = [f for f in os.listdir(os.path.dirname(TEMPLATE_FILE)) if f.endswith('.pptx')]
@@ -539,11 +596,23 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         else:
             para.text = text
 
-    def replace_period_in_text(text):
+    def _detect_context(text):
+        """Retourne (already_has_a_fin, is_title_context) à partir d'un texte
+        (typiquement le texte complet d'un text_frame ou d'une cellule)."""
+        if not text:
+            return False, False
+        up = text.upper()
+        already = ('A FIN' in up) or ('À FIN' in up)
+        is_title = any(kw in up for kw in (
+            'SYNTHESE', 'SYNTHÈSE', 'MARCHE HORS', 'MARCHÉ HORS'
+        ))
+        return already, is_title
+
+    def replace_period_in_text(text, *, force_already_has_a_fin=None, force_title_context=None):
         if not text or not isinstance(text, str):
             return text
         result = text
-        # Plage large pour gérer n'importe quelle année cible (ex: 2035 vs template 2025)
+        # ── 1) Années ──
         cur_2 = str(current_year)[-2:]
         prv_2 = str(previous_year)[-2:]
         for yr_offset in range(1, 25):
@@ -555,7 +624,6 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             result = result.replace(f'{old_prv}-{old_cur}', f'{previous_year}-{current_year}')
             result = result.replace(str(old_cur), str(current_year))
             result = result.replace(str(old_prv), str(previous_year))
-            # Format court "PDM 26" / "PDM 25" présent dans certains en-têtes
             old_cur_2 = str(old_cur)[-2:]
             old_prv_2 = str(old_prv)[-2:]
             if old_cur_2 != cur_2:
@@ -563,38 +631,53 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             if old_prv_2 != prv_2:
                 result = result.replace(f'PDM {old_prv_2}', f'PDM {prv_2}')
 
-        # Préfixes "Cumul a fin <Mois>" présents dans certains templates
-        cumul_prefixes_upper = ['CUMUL A FIN ', 'CUMUL À FIN ', 'CUMUL AU MOIS DE ', 'CUMUL ']
-        cumul_prefixes_title = ['Cumul a fin ', 'Cumul à fin ', 'Cumul au mois de ', 'Cumul ']
-        for mu, mt in zip(MOIS_ALL_UPPER, MOIS_ALL):
-            for prefix_u in cumul_prefixes_upper:
-                result = result.replace(f'{prefix_u}{mu}', f'{prefix_u}{period_display_upper}')
-            for prefix_t in cumul_prefixes_title:
-                result = result.replace(f'{prefix_t}{mt}', f'{prefix_t}{period_display_title}')
+        # ── 2) Détection du contexte (forçable depuis l'appelant) ──
+        if force_already_has_a_fin is not None or force_title_context is not None:
+            already_has_a_fin = bool(force_already_has_a_fin)
+            is_title_context = bool(force_title_context)
+        else:
+            already_has_a_fin, is_title_context = _detect_context(result)
 
-        # Remplacement des noms de mois COMPLETS d'abord
-        for mu, mt in zip(MOIS_ALL_UPPER, MOIS_ALL):
-            if mu != period_display_upper:
-                result = result.replace(mu, period_display_upper)
-            if mt != period_display_title:
-                result = result.replace(mt, period_display_title)
+        if already_has_a_fin:
+            sub_upper = period_month_upper
+            sub_title = period_month_name
+        elif is_title_context:
+            sub_upper = long_upper
+            sub_title = long_title
+        else:
+            sub_upper = short_upper
+            sub_title = short_title
 
-        # Puis remplacement des ABRÉVIATIONS (Janv, Févr, Sept, etc.)
-        # On le fait après les noms complets pour ne pas casser "Janvier" en "Marsier"
-        for full, abbrev in ABBREV_BY_FULL.items():
-            if abbrev == period_abbrev_title:
-                continue
-            au = abbrev.upper()
-            result = result.replace(au, period_abbrev_upper)
-            result = result.replace(abbrev, period_abbrev_title)
+        # ── 3) Remplacement des noms de mois COMPLETS (pass unique via regex pour
+        #       éviter de re-substituer un mois introduit par la substitution précédente,
+        #       ex: JANVIER → "A FIN MARS" puis MARS qui serait re-remplacé) ──
+        import re
+        # Pattern UPPERCASE
+        pat_upper = re.compile(r'\b(' + '|'.join(re.escape(m) for m in MOIS_ALL_UPPER) + r')\b')
+        result = pat_upper.sub(sub_upper, result)
+        # Pattern Title-case
+        pat_title = re.compile(r'\b(' + '|'.join(re.escape(m) for m in MOIS_ALL) + r')\b')
+        result = pat_title.sub(sub_title, result)
 
-        # Cas particulier : typo "ANVIER" présente dans certains en-têtes du template
+        # ── 4) Remplacement des ABRÉVIATIONS (Janv, Févr, Sept, ...) en pass unique ──
+        # Exclure les abréviations qui sont identiques au nom complet d'un mois
+        # (ex: "Mars" est à la fois full-name et abbrev) afin de ne pas re-substituer
+        # un mois déjà traité à l'étape 3.
+        all_abbrevs = [a for a in ABBREV_BY_FULL.values() if a not in MOIS_ALL]
+        if all_abbrevs:
+            pat_abbrev_upper = re.compile(r'\b(' + '|'.join(re.escape(a.upper()) for a in all_abbrevs) + r')\b')
+            result = pat_abbrev_upper.sub(abbrev_upper, result)
+            pat_abbrev_title = re.compile(r'\b(' + '|'.join(re.escape(a) for a in all_abbrevs) + r')\b')
+            result = pat_abbrev_title.sub(abbrev_title, result)
+
+        # ── 5) Cas particulier : typo "ANVIER" présente dans certains en-têtes du template
         # (ex: "AGL ANVIER 2026" au lieu de "AGL JANVIER 2026")
         if 'ANVIER' in result:
-            result = result.replace('ANVIER', period_display_upper)
+            # En-tête de tableau → forme courte
+            result = result.replace('ANVIER', short_upper)
         return result
 
-    def _apply_to_paragraph(para):
+    def _apply_to_paragraph(para, *, force_already=None, force_title=None):
         """
         Remplace les noms de mois et années au niveau du paragraphe complet
         (utile quand un mot est fragmenté entre plusieurs runs).
@@ -602,12 +685,16 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         """
         if not para.runs:
             if para.text:
-                new = replace_period_in_text(para.text)
+                new = replace_period_in_text(para.text,
+                                             force_already_has_a_fin=force_already,
+                                             force_title_context=force_title)
                 if new != para.text:
                     para.text = new
             return
         full = "".join(r.text for r in para.runs)
-        new = replace_period_in_text(full)
+        new = replace_period_in_text(full,
+                                     force_already_has_a_fin=force_already,
+                                     force_title_context=force_title)
         if new == full:
             return
         # Réécriture : on met tout dans la première run, on vide les autres
@@ -615,22 +702,61 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         for r in para.runs[1:]:
             r.text = ""
 
-    def apply_period_to_shape_recursive(shape):
+    def _tf_full_text(tf):
+        try:
+            return "\n".join(p.text for p in tf.paragraphs)
+        except Exception:
+            return ""
+
+    def _slide_full_text(slide):
+        chunks = []
+        def _walk(sh):
+            try:
+                if sh.shape_type == 6:
+                    for sub in sh.shapes: _walk(sub)
+                    return
+                if hasattr(sh, 'has_table') and sh.has_table:
+                    return  # On exclut les tableaux du contexte slide
+                if hasattr(sh, 'text_frame') and sh.text_frame:
+                    chunks.append("\n".join(p.text for p in sh.text_frame.paragraphs))
+            except Exception:
+                pass
+        for sh in slide.shapes: _walk(sh)
+        return "\n".join(chunks)
+
+    def apply_period_to_shape_recursive(shape, *, slide_already=False, slide_title=False):
         try:
             if shape.shape_type == 6:
                 for sub in shape.shapes:
-                    apply_period_to_shape_recursive(sub)
+                    apply_period_to_shape_recursive(sub,
+                                                    slide_already=slide_already,
+                                                    slide_title=slide_title)
                 return
             if shape.has_table:
                 tbl = shape.table
+                # Dans les cellules de tableau : JAMAIS de forme longue "A FIN MARS",
+                # toujours forme courte "3 MOIS" (sauf si la cellule contient déjà "A FIN")
                 for row in tbl.rows:
                     for cell in row.cells:
+                        full_cell = _tf_full_text(cell.text_frame)
+                        c_already, _ = _detect_context(full_cell)
                         for para in cell.text_frame.paragraphs:
-                            _apply_to_paragraph(para)
+                            _apply_to_paragraph(para,
+                                                force_already=c_already,
+                                                force_title=False)
                 return
             if hasattr(shape, 'text_frame') and shape.text_frame:
+                # Pour un text_frame :
+                #  - already_has_a_fin = vrai si le text_frame OU la slide a "A FIN"
+                #  - is_title_context = vrai si le text_frame OU la slide est de type titre
+                full_tf = _tf_full_text(shape.text_frame)
+                tf_already, tf_title = _detect_context(full_tf)
+                eff_already = tf_already or slide_already
+                eff_title = tf_title or slide_title
                 for para in shape.text_frame.paragraphs:
-                    _apply_to_paragraph(para)
+                    _apply_to_paragraph(para,
+                                        force_already=eff_already,
+                                        force_title=eff_title)
         except Exception:
             pass
 
@@ -788,6 +914,195 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
                     _set_paragraph_text(cell.text_frame.paragraphs[0], vals[c_idx])
                 except Exception:
                     pass
+
+    # ───────── Slide 2 : Top 20 Transitaires (Marché Hors Transitaires Intégrés) ─────────
+    def fill_top20_transitaires_board(slide, sections_data, current_year, previous_year, is_single):
+        """
+        Remplace l'image hardcodée 'Image 10' par un vrai tableau dynamique
+        des Top 20 Transitaires (Import Maritime), avec totaux et part de marché.
+        """
+        if 'Import Maritime' not in sections_data:
+            return
+        sd = sections_data['Import Maritime']
+        df = sd.get('df_cible')
+        if df is None or df.empty or 'Transitaire' not in df.columns:
+            return
+        metric_col = 'NOMBRE_TEU'
+        if metric_col not in df.columns:
+            return
+
+        # Agrégation par transitaire
+        df_cur = df[df['Année escale'] == current_year]
+        df_prv = df[df['Année escale'] == previous_year] if not is_single else None
+        g_cur = df_cur.groupby('Transitaire')[metric_col].sum()
+        if df_prv is not None and not df_prv.empty:
+            g_prv = df_prv.groupby('Transitaire')[metric_col].sum()
+        else:
+            g_prv = pd.Series(dtype=float)
+        merged = pd.concat([g_cur.rename('cur'), g_prv.rename('prv')], axis=1).fillna(0)
+        # Exclure les valeurs vides / NON APURE / 0
+        merged = merged[merged.index.astype(str).str.strip() != '']
+        merged = merged[~merged.index.astype(str).str.upper().isin(['0', 'NAN', 'NONE'])]
+
+        total_cur = float(merged['cur'].sum())
+        total_prv = float(merged['prv'].sum())
+        merged = merged.sort_values('cur', ascending=False)
+        top20 = merged.head(20).copy()
+        autres = merged.iloc[20:]
+        autres_cur = float(autres['cur'].sum())
+        autres_prv = float(autres['prv'].sum())
+        top20_cur = float(top20['cur'].sum())
+        top20_prv = float(top20['prv'].sum())
+
+        # Localiser l'image et la supprimer
+        image_left = image_top = image_width = image_height = None
+        for sh in list(slide.shapes):
+            if sh.shape_type == 13 and sh.name == 'Image 10':
+                image_left, image_top = sh.left, sh.top
+                image_width, image_height = sh.width, sh.height
+                sp = sh._element
+                sp.getparent().remove(sp)
+                break
+        if image_left is None:
+            # Pas d'image trouvée : on ne génère rien
+            return
+
+        from pptx.util import Pt
+        from pptx.dml.color import RGBColor
+        from pptx.enum.text import PP_ALIGN
+
+        # Colonnes: Rank | Transitaire | Vol prv | PDM prv | Vol cur | PDM cur | Var unit | Var %
+        n_cols = 7 if is_single else 7  # rank+name+volcur+pdmcur+volprv+pdmprv+var (simplified single)
+        # Pour rester fidèle au rapport original, on ajoute toujours toutes les colonnes
+        headers = ["TRANSITAIRES",
+                   f"VOLUME {previous_year} TEUS", f"PDM {str(previous_year)[-2:]}",
+                   f"VOLUME {current_year} TEUS", f"PDM {str(current_year)[-2:]}",
+                   "VARIATION D'UNITE D'OEUVRE", "VARIATION %"]
+        n_cols = len(headers) + 1  # + colonne rang
+        # 1 ligne header + 20 lignes top20 + 1 ligne TOP20 + 1 ligne AUTRES + 1 ligne TOTAL
+        n_rows = 1 + len(top20) + 3
+
+        tbl_shape = slide.shapes.add_table(n_rows, n_cols, image_left, image_top, image_width, image_height)
+        tbl = tbl_shape.table
+
+        # Largeurs de colonnes : rang petit, nom large, autres équilibrées
+        from pptx.util import Emu
+        total_w = image_width
+        col_widths_pct = [0.04, 0.30, 0.11, 0.07, 0.11, 0.07, 0.15, 0.15]
+        for i, pct in enumerate(col_widths_pct):
+            tbl.columns[i].width = Emu(int(total_w * pct))
+
+        # Couleurs du rapport original
+        COLOR_HEADER_BG = RGBColor(0x1C, 0x35, 0x5E)   # Navy
+        COLOR_HEADER_FG = RGBColor(0xFF, 0xFF, 0xFF)
+        COLOR_RANK_BG   = RGBColor(0xD9, 0xE1, 0xF2)
+        COLOR_TOP20_BG  = RGBColor(0xC6, 0xE0, 0xB4)   # Vert clair
+        COLOR_AUTRES_BG = RGBColor(0xF8, 0xCB, 0xAD)   # Orange clair
+        COLOR_TOTAL_BG  = RGBColor(0xA9, 0xD0, 0x8E)   # Vert plus foncé
+        COLOR_BLUE_TXT  = RGBColor(0x00, 0x70, 0xC0)
+        COLOR_RED_TXT   = RGBColor(0xC0, 0x00, 0x00)
+
+        def _set_cell(cell, text, *, bold=False, color=None, bg=None, align=None, size=Pt(9)):
+            cell.text = ""
+            tf = cell.text_frame
+            p = tf.paragraphs[0]
+            for r in p.runs:
+                r.text = ""
+            r = p.add_run()
+            r.text = text
+            r.font.size = size
+            r.font.bold = bold
+            if color:
+                r.font.color.rgb = color
+            if align:
+                p.alignment = align
+            if bg:
+                from pptx.oxml.ns import qn
+                from lxml import etree
+                tcPr = cell._tc.get_or_add_tcPr()
+                # remove existing fill
+                for child in tcPr.findall(qn('a:solidFill')):
+                    tcPr.remove(child)
+                solidFill = etree.SubElement(tcPr, qn('a:solidFill'))
+                srgb = etree.SubElement(solidFill, qn('a:srgbClr'))
+                srgb.set('val', f"{bg[0]:02X}{bg[1]:02X}{bg[2]:02X}")
+            cell.margin_left = Emu(36000)
+            cell.margin_right = Emu(36000)
+            cell.margin_top = Emu(18000)
+            cell.margin_bottom = Emu(18000)
+
+        # ── Header (ligne 0) ──
+        _set_cell(tbl.cell(0, 0), "", bg=(0x1C, 0x35, 0x5E))
+        for ci, hdr in enumerate(headers):
+            _set_cell(tbl.cell(0, ci + 1), hdr, bold=True, color=COLOR_HEADER_FG,
+                      bg=(0x1C, 0x35, 0x5E), align=PP_ALIGN.CENTER, size=Pt(9))
+
+        def _fmt_int(v): return f"{int(round(v)):,}".replace(",", " ")
+        def _fmt_pct(num, den):
+            if den <= 0: return "0%"
+            return f"{round(num / den * 100)}%"
+        def _fmt_signed(v):
+            sign = "" if v >= 0 else "-"
+            return f"{sign}{_fmt_int(abs(v))}"
+
+        # ── Top 20 (lignes 1..20) ──
+        for i, (name, row) in enumerate(top20.iterrows()):
+            r_idx = i + 1
+            cur = float(row['cur']); prv = float(row['prv'])
+            var_u = cur - prv
+            var_pct = (var_u / prv * 100) if prv > 0 else (100.0 if cur > 0 else 0.0)
+            _set_cell(tbl.cell(r_idx, 0), str(i + 1), bold=True, bg=(0xD9, 0xE1, 0xF2),
+                      align=PP_ALIGN.CENTER, color=COLOR_BLUE_TXT)
+            _set_cell(tbl.cell(r_idx, 1), str(name)[:40], bold=True, color=COLOR_BLUE_TXT, size=Pt(9))
+            _set_cell(tbl.cell(r_idx, 2), _fmt_int(prv), align=PP_ALIGN.CENTER, color=COLOR_BLUE_TXT)
+            _set_cell(tbl.cell(r_idx, 3), _fmt_pct(prv, total_prv), align=PP_ALIGN.CENTER, color=COLOR_BLUE_TXT)
+            _set_cell(tbl.cell(r_idx, 4), _fmt_int(cur), align=PP_ALIGN.CENTER, color=COLOR_BLUE_TXT)
+            _set_cell(tbl.cell(r_idx, 5), _fmt_pct(cur, total_cur), align=PP_ALIGN.CENTER, color=COLOR_BLUE_TXT)
+            var_color = COLOR_BLUE_TXT if var_u >= 0 else COLOR_RED_TXT
+            _set_cell(tbl.cell(r_idx, 6), _fmt_signed(var_u), align=PP_ALIGN.CENTER, color=var_color, bold=True)
+            _set_cell(tbl.cell(r_idx, 7), f"{round(var_pct)}%", align=PP_ALIGN.CENTER, color=var_color, bold=True)
+
+        # ── Ligne TOP 20 TRANSITAIRES ──
+        r_idx = 1 + len(top20)
+        _set_cell(tbl.cell(r_idx, 0), "", bg=(0xC6, 0xE0, 0xB4))
+        _set_cell(tbl.cell(r_idx, 1), "TOP 20 TRANSITAIRES", bold=True, bg=(0xC6, 0xE0, 0xB4))
+        _set_cell(tbl.cell(r_idx, 2), _fmt_int(top20_prv), bold=True, bg=(0xC6, 0xE0, 0xB4), align=PP_ALIGN.CENTER)
+        _set_cell(tbl.cell(r_idx, 3), _fmt_pct(top20_prv, total_prv), bold=True, bg=(0xC6, 0xE0, 0xB4), align=PP_ALIGN.CENTER)
+        _set_cell(tbl.cell(r_idx, 4), _fmt_int(top20_cur), bold=True, bg=(0xC6, 0xE0, 0xB4), align=PP_ALIGN.CENTER)
+        _set_cell(tbl.cell(r_idx, 5), _fmt_pct(top20_cur, total_cur), bold=True, bg=(0xC6, 0xE0, 0xB4), align=PP_ALIGN.CENTER)
+        var_t = top20_cur - top20_prv
+        var_t_pct = (var_t / top20_prv * 100) if top20_prv > 0 else 0
+        col_t = COLOR_BLUE_TXT if var_t >= 0 else COLOR_RED_TXT
+        _set_cell(tbl.cell(r_idx, 6), _fmt_signed(var_t), bold=True, bg=(0xC6, 0xE0, 0xB4), align=PP_ALIGN.CENTER, color=col_t)
+        _set_cell(tbl.cell(r_idx, 7), f"{round(var_t_pct)}%", bold=True, bg=(0xC6, 0xE0, 0xB4), align=PP_ALIGN.CENTER, color=col_t)
+
+        # ── Ligne AUTRES TRANSITAIRES ──
+        r_idx += 1
+        _set_cell(tbl.cell(r_idx, 0), "", bg=(0xF8, 0xCB, 0xAD))
+        _set_cell(tbl.cell(r_idx, 1), "AUTRES TRANSITAIRES", bold=True, bg=(0xF8, 0xCB, 0xAD))
+        _set_cell(tbl.cell(r_idx, 2), _fmt_int(autres_prv), bold=True, bg=(0xF8, 0xCB, 0xAD), align=PP_ALIGN.CENTER)
+        _set_cell(tbl.cell(r_idx, 3), _fmt_pct(autres_prv, total_prv), bold=True, bg=(0xF8, 0xCB, 0xAD), align=PP_ALIGN.CENTER)
+        _set_cell(tbl.cell(r_idx, 4), _fmt_int(autres_cur), bold=True, bg=(0xF8, 0xCB, 0xAD), align=PP_ALIGN.CENTER)
+        _set_cell(tbl.cell(r_idx, 5), _fmt_pct(autres_cur, total_cur), bold=True, bg=(0xF8, 0xCB, 0xAD), align=PP_ALIGN.CENTER)
+        var_a = autres_cur - autres_prv
+        var_a_pct = (var_a / autres_prv * 100) if autres_prv > 0 else 0
+        col_a = COLOR_BLUE_TXT if var_a >= 0 else COLOR_RED_TXT
+        _set_cell(tbl.cell(r_idx, 6), _fmt_signed(var_a), bold=True, bg=(0xF8, 0xCB, 0xAD), align=PP_ALIGN.CENTER, color=col_a)
+        _set_cell(tbl.cell(r_idx, 7), f"{round(var_a_pct)}%", bold=True, bg=(0xF8, 0xCB, 0xAD), align=PP_ALIGN.CENTER, color=col_a)
+
+        # ── Ligne TOTAL MARCHE ──
+        r_idx += 1
+        _set_cell(tbl.cell(r_idx, 0), "", bg=(0xA9, 0xD0, 0x8E))
+        _set_cell(tbl.cell(r_idx, 1), "TOTAL MARCHE", bold=True, bg=(0xA9, 0xD0, 0x8E))
+        _set_cell(tbl.cell(r_idx, 2), _fmt_int(total_prv), bold=True, bg=(0xA9, 0xD0, 0x8E), align=PP_ALIGN.CENTER)
+        _set_cell(tbl.cell(r_idx, 3), "100%", bold=True, bg=(0xA9, 0xD0, 0x8E), align=PP_ALIGN.CENTER)
+        _set_cell(tbl.cell(r_idx, 4), _fmt_int(total_cur), bold=True, bg=(0xA9, 0xD0, 0x8E), align=PP_ALIGN.CENTER)
+        _set_cell(tbl.cell(r_idx, 5), "100%", bold=True, bg=(0xA9, 0xD0, 0x8E), align=PP_ALIGN.CENTER)
+        var_tm = total_cur - total_prv
+        var_tm_pct = (var_tm / total_prv * 100) if total_prv > 0 else 0
+        col_tm = COLOR_BLUE_TXT if var_tm >= 0 else COLOR_RED_TXT
+        _set_cell(tbl.cell(r_idx, 6), _fmt_signed(var_tm), bold=True, bg=(0xA9, 0xD0, 0x8E), align=PP_ALIGN.CENTER, color=col_tm)
+        _set_cell(tbl.cell(r_idx, 7), f"{round(var_tm_pct)}%", bold=True, bg=(0xA9, 0xD0, 0x8E), align=PP_ALIGN.CENTER, color=col_tm)
 
     def fill_synthese_table(slide, comp, metric_unit, label_per, is_single, current_year, previous_year):
         tbl = find_table(slide)
@@ -1082,11 +1397,17 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
     slides = list(out_prs.slides)
 
     for slide in slides:
+        slide_text = _slide_full_text(slide)
+        s_already, s_title = _detect_context(slide_text)
         for sh in slide.shapes:
-            apply_period_to_shape_recursive(sh)
+            apply_period_to_shape_recursive(sh,
+                                            slide_already=s_already,
+                                            slide_title=s_title)
 
     if len(slides) > 1:
         fill_market_overview(slides[1], sections_data, current_year, previous_year, label_periode, is_single_month)
+        # Tableau dynamique Top 20 Transitaires (remplace l'image hardcodée du template)
+        fill_top20_transitaires_board(slides[1], sections_data, current_year, previous_year, is_single_month)
 
     section_map = {
         'Import Maritime':  (2, 3, 4),
@@ -1432,7 +1753,13 @@ def render_pptx_page(st):
         try:
             sections = {}
             period_mode_key = 'YTD' if 'YTD' in period_mode or 'Cumul' in period_mode else 'MOIS'
-            label_periode = f"YTD {period_month}" if period_mode_key == 'YTD' else str(period_month)
+            # Construire un label parseable contenant le NOM du mois (ex: "YTD Mars" / "Mars")
+            try:
+                _pm_int = int(period_month)
+                _pm_name = MOIS_NUM_TO_NAME.get(_pm_int, str(period_month))
+            except (TypeError, ValueError):
+                _pm_name = str(period_month)
+            label_periode = f"YTD {_pm_name}" if period_mode_key == 'YTD' else _pm_name
 
             for key, (fname, scan) in scans.items():
                 if 'error' in scan: continue
