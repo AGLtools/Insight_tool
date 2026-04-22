@@ -503,6 +503,24 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
     if period_month_name is None:
         period_month_name = MOIS_ALL[-1]
 
+    # Index du mois (1..12) — utilisé pour le format YTD "N MOIS"
+    period_month_idx = MOIS_ALL.index(period_month_name) + 1
+
+    # Format d'affichage de la période :
+    #  - Mois spécifique : on garde le nom du mois (ex: "MARS 2026")
+    #  - Cumul (YTD)     : on remplace par "N MOIS" (ex: "3 MOIS 2026")
+    if is_single_month:
+        period_display_title = period_month_name           # "Mars"
+        period_display_upper = period_month_name.upper()   # "MARS"
+        period_abbrev_title  = ABBREV_BY_FULL.get(period_month_name, period_month_name)  # "Mars"
+        period_abbrev_upper  = period_abbrev_title.upper()  # "MARS"
+    else:
+        ytd_label = f"{period_month_idx} MOIS"
+        period_display_title = ytd_label                   # "3 MOIS"
+        period_display_upper = ytd_label                   # "3 MOIS"
+        period_abbrev_title  = ytd_label                   # "3 MOIS"
+        period_abbrev_upper  = ytd_label                   # "3 MOIS"
+
     if not os.path.isfile(TEMPLATE_FILE):
         available = [f for f in os.listdir(os.path.dirname(TEMPLATE_FILE)) if f.endswith('.pptx')]
         raise FileNotFoundError(
@@ -545,35 +563,35 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             if old_prv_2 != prv_2:
                 result = result.replace(f'PDM {old_prv_2}', f'PDM {prv_2}')
 
-        period_upper = period_month_name.upper()
-        period_title = period_month_name
+        # Préfixes "Cumul a fin <Mois>" présents dans certains templates
         cumul_prefixes_upper = ['CUMUL A FIN ', 'CUMUL À FIN ', 'CUMUL AU MOIS DE ', 'CUMUL ']
         cumul_prefixes_title = ['Cumul a fin ', 'Cumul à fin ', 'Cumul au mois de ', 'Cumul ']
         for mu, mt in zip(MOIS_ALL_UPPER, MOIS_ALL):
             for prefix_u in cumul_prefixes_upper:
-                result = result.replace(f'{prefix_u}{mu}', f'{prefix_u}{period_upper}')
+                result = result.replace(f'{prefix_u}{mu}', f'{prefix_u}{period_display_upper}')
             for prefix_t in cumul_prefixes_title:
-                result = result.replace(f'{prefix_t}{mt}', f'{prefix_t}{period_title}')
+                result = result.replace(f'{prefix_t}{mt}', f'{prefix_t}{period_display_title}')
 
         # Remplacement des noms de mois COMPLETS d'abord
         for mu, mt in zip(MOIS_ALL_UPPER, MOIS_ALL):
-            if mu != period_upper:
-                result = result.replace(mu, period_upper)
-            if mt != period_title:
-                result = result.replace(mt, period_title)
+            if mu != period_display_upper:
+                result = result.replace(mu, period_display_upper)
+            if mt != period_display_title:
+                result = result.replace(mt, period_display_title)
 
         # Puis remplacement des ABRÉVIATIONS (Janv, Févr, Sept, etc.)
         # On le fait après les noms complets pour ne pas casser "Janvier" en "Marsier"
-        period_abbrev = ABBREV_BY_FULL.get(period_month_name, period_month_name)
-        period_abbrev_upper = period_abbrev.upper()
         for full, abbrev in ABBREV_BY_FULL.items():
-            if abbrev == period_abbrev:
+            if abbrev == period_abbrev_title:
                 continue
             au = abbrev.upper()
-            # On évite de toucher aux abréviations qui sont déjà préfixe de la pleine
-            # forme (or les pleines formes ont déjà été remplacées juste avant)
             result = result.replace(au, period_abbrev_upper)
-            result = result.replace(abbrev, period_abbrev)
+            result = result.replace(abbrev, period_abbrev_title)
+
+        # Cas particulier : typo "ANVIER" présente dans certains en-têtes du template
+        # (ex: "AGL ANVIER 2026" au lieu de "AGL JANVIER 2026")
+        if 'ANVIER' in result:
+            result = result.replace('ANVIER', period_display_upper)
         return result
 
     def _apply_to_paragraph(para):
@@ -623,6 +641,8 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         return None
 
     # ───────── Helpers formatage avancé (couleurs) ─────────
+    from copy import deepcopy as _deepcopy
+
     def _capture_para_props(para):
         """Retourne (size, font_name) de la première run d'un paragraphe."""
         size = None
@@ -632,6 +652,35 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             if f.size: size = f.size
             if f.name: font_name = f.name
         return size, font_name
+
+    def _clear_para_runs(para):
+        """Supprime tous les runs (a:r, a:br, a:fld) du paragraphe SANS toucher au pPr.
+        Préserve donc les puces, l'indentation et la mise en forme du paragraphe."""
+        from pptx.oxml.ns import qn
+        p = para._p
+        for tag in ('a:r', 'a:br', 'a:fld'):
+            for child in p.findall(qn(tag)):
+                p.remove(child)
+
+    def _clone_pPr_into(target_para, source_para):
+        """Copie le <a:pPr> de source_para dans target_para (préserve puces/indent)."""
+        from pptx.oxml.ns import qn
+        src_pPr = source_para._p.find(qn('a:pPr'))
+        if src_pPr is None:
+            return
+        tgt_p = target_para._p
+        old = tgt_p.find(qn('a:pPr'))
+        if old is not None:
+            tgt_p.remove(old)
+        new_pPr = _deepcopy(src_pPr)
+        tgt_p.insert(0, new_pPr)
+
+    def _add_paragraph_like(tf, template_para):
+        """Ajoute un nouveau paragraphe et copie le pPr d'un paragraphe modèle."""
+        new_p = tf.add_paragraph()
+        if template_para is not None:
+            _clone_pPr_into(new_p, template_para)
+        return new_p
 
     def _add_run(para, text, *, bold=False, color=None, size=None, font_name=None):
         r = para.add_run()
@@ -659,34 +708,54 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         Rectangle de résumé : 'XX Clients à 100 % de PDM   + 212 Teus'
         - label en regular
         - value en gras + couleur (bleu si +, rouge si -)
+        Préserve la puce et la mise en forme du paragraphe d'origine.
         """
         tf = shape.text_frame
-        size, font_name = _capture_para_props(tf.paragraphs[0]) if tf.paragraphs else (Pt(12), None)
-        size = size or Pt(12)
-        tf.clear()
+        if not tf.paragraphs:
+            return
         p = tf.paragraphs[0]
+        size, font_name = _capture_para_props(p)
+        size = size or Pt(12)
+        _clear_para_runs(p)
         _add_run(p, f"{label}  ", size=size, font_name=font_name)
         _add_run(p, _fmt_signed(value, unit), bold=True, color=_value_color(value),
                  size=size, font_name=font_name)
+        # Supprime les paragraphes suivants éventuels (template multi-lignes inutile)
+        from pptx.oxml.ns import qn
+        all_p = tf._txBody.findall(qn('a:p'))
+        for extra in all_p[1:]:
+            tf._txBody.remove(extra)
 
     def _set_detail_rect_formatted(shape, lines, unit):
         """
         Rectangle de détail multi-lignes :
         lines = [(count, label, value), ...]
-        - count : gras
-        - label : regular
-        - value : gras + couleur
+        Préserve la puce/indentation des paragraphes d'origine.
         """
         tf = shape.text_frame
-        size, font_name = _capture_para_props(tf.paragraphs[0]) if tf.paragraphs else (Pt(11), None)
+        if not tf.paragraphs:
+            return
+        from pptx.oxml.ns import qn
+        existing = list(tf.paragraphs)
+        first = existing[0]
+        size, font_name = _capture_para_props(first)
         size = size or Pt(11)
-        tf.clear()
+        # 1) Réécrit les paragraphes existants (jusqu'au nombre de lignes nécessaires)
         for i, (count, label, value) in enumerate(lines):
-            p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+            if i < len(existing):
+                p = existing[i]
+                _clear_para_runs(p)
+            else:
+                # Nouveau paragraphe : clone le pPr du dernier existant pour garder la puce
+                p = _add_paragraph_like(tf, existing[-1])
             _add_run(p, f"{int(count):02d} ", bold=True, size=size, font_name=font_name)
             _add_run(p, f"{label}  ", size=size, font_name=font_name)
             _add_run(p, _fmt_signed(value, unit), bold=True, color=_value_color(value),
                      size=size, font_name=font_name)
+        # 2) Supprime les paragraphes excédentaires
+        all_p = tf._txBody.findall(qn('a:p'))
+        for extra in all_p[len(lines):]:
+            tf._txBody.remove(extra)
 
     # ───────── Slide Market Overview ─────────
     def fill_market_overview(slide, sections_data, current_year, previous_year, label_per, is_single):
@@ -764,6 +833,8 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
                 columns={'Transitaire': '1ER_CONC', 'NOMBRE_TEU': 'TEUS_CONC'})
         merged = pd.merge(comp, tc[[client_col, '1ER_CONC', 'TEUS_CONC']],
                           on=client_col, how='left').fillna(0)
+        # Liste noire (excluded_clients.json) — même filtrage que pour le dashboard
+        merged = merged[~merged[client_col].apply(_is_excluded_client)]
         merged['VOL_CONC'] = merged[col_tm_cur] - merged[col_ag_cur]
         mask_non_apure = merged['1ER_CONC'].apply(_is_non_apure)
         merged.loc[mask_non_apure & (merged['TEUS_CONC'] <= 0), 'TEUS_CONC'] = \
@@ -834,23 +905,35 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             return
 
         tf = best_sh.text_frame
-        size, font_name = _capture_para_props(tf.paragraphs[0]) if tf.paragraphs else (Pt(12), None)
+        from pptx.oxml.ns import qn
+        # Capture les pPr (puces, indentation) des paragraphes du template
+        # P0 = "Nous notons" (bullet niv 0), P1 = "Les 10 Principaux" (no bullet),
+        # P2 = ligne vide, P3..P12 = clients (bullet niv 1)
+        existing = list(tf.paragraphs)
+        tpl_p0 = existing[0] if len(existing) > 0 else None
+        tpl_p1 = existing[1] if len(existing) > 1 else tpl_p0
+        tpl_p2 = existing[2] if len(existing) > 2 else tpl_p1
+        tpl_p_client = existing[3] if len(existing) > 3 else tpl_p0
+        size, font_name = _capture_para_props(tpl_p0) if tpl_p0 else (Pt(12), None)
         size = size or Pt(12)
-        tf.clear()
 
-        # Ligne 1 : intro avec valeur en rouge
+        # Vide tous les paragraphes existants (mais garde le premier comme support)
+        for extra in existing[1:]:
+            tf._txBody.remove(extra._p)
+        # Ligne 1 : intro avec valeur en rouge — réutilise pPr de P0
         loss_str = f"{abs(total_loss):,}".replace(",", " ")
         p0 = tf.paragraphs[0]
+        _clear_para_runs(p0)
         _add_run(p0, "Nous notons que les Volumes d'AGL sont en baisse ( ", size=size, font_name=font_name)
         _add_run(p0, f"{loss_str} {unit}", bold=True, color=COLOR_RED, size=size, font_name=font_name)
         _add_run(p0, ").", size=size, font_name=font_name)
 
-        # Ligne 2
-        p1 = tf.add_paragraph()
+        # Ligne 2 : pas de puce
+        p1 = _add_paragraph_like(tf, tpl_p1)
         _add_run(p1, "Les 10 Principaux Acteurs de cette Baisse sont:", size=size, font_name=font_name)
 
         # Ligne vide
-        tf.add_paragraph()
+        _add_paragraph_like(tf, tpl_p2)
 
         # Top 10 clients : nom + variation AGL en rouge + (marché direction Hausse/Baisse)
         for _, row in top10.iterrows():
@@ -859,7 +942,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             market_dir = "Hausse" if market_var >= 0 else "Baisse"
             market_color = COLOR_BLUE if market_var >= 0 else COLOR_RED
             name = str(row[client_col])[:40]
-            p = tf.add_paragraph()
+            p = _add_paragraph_like(tf, tpl_p_client)
             _add_run(p, f"{name}  ", size=size, font_name=font_name)
             _add_run(p, f"- {agl_loss:,} {unit}".replace(",", " "),
                      bold=True, color=COLOR_RED, size=size, font_name=font_name)
@@ -968,17 +1051,32 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
 
         if rappel_sh is not None:
             tf = rappel_sh.text_frame
-            size, font_name = _capture_para_props(tf.paragraphs[0]) if tf.paragraphs else (Pt(11), None)
+            from pptx.oxml.ns import qn
+            existing = list(tf.paragraphs)
+            template_para = existing[0] if existing else None
+            size, font_name = _capture_para_props(template_para) if template_para else (Pt(11), None)
             size = size or Pt(11)
-            tf.clear()
-            p0 = tf.paragraphs[0]
+            # Réutilise les 2 premiers paragraphes du template (pour préserver les puces)
+            if len(existing) >= 1:
+                p0 = existing[0]
+                _clear_para_runs(p0)
+            else:
+                p0 = tf.paragraphs[0]
             _add_run(p0, "Actifs ", bold=True, size=size, font_name=font_name)
             _add_run(p0, f"  = travaillé en {current_year} et pas en {previous_year}.",
                      size=size, font_name=font_name)
-            p1 = tf.add_paragraph()
+            if len(existing) >= 2:
+                p1 = existing[1]
+                _clear_para_runs(p1)
+            else:
+                p1 = _add_paragraph_like(tf, template_para)
             _add_run(p1, "Inactifs ", bold=True, size=size, font_name=font_name)
             _add_run(p1, f"= pas travaillé en {current_year} et travaillé en {previous_year}",
                      size=size, font_name=font_name)
+            # Supprime paragraphes excédentaires
+            all_p = tf._txBody.findall(qn('a:p'))
+            for extra in all_p[2:]:
+                tf._txBody.remove(extra)
 
     # ───────── Application ─────────
     slides = list(out_prs.slides)
