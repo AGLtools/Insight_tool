@@ -97,9 +97,12 @@ echo.
 :start_download
 
 :: ---- 1. Application principale ----
-echo [1/8] Telechargement de app.py et excluded_clients.json...
+echo [1/8] Telechargement de app.py et Insight_generation.py...
 %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/app.py', 'app.py')"
-%PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/excluded_clients.json', 'excluded_clients.json')"
+%PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/Insight_generation.py', 'Insight_generation.py')"
+if not exist "excluded_clients.json" (
+    %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/excluded_clients.json', 'excluded_clients.json')"
+)
 
 if %errorlevel% neq 0 (
     echo [ERREUR] Impossible de telecharger app.py ou excluded_clients.json
