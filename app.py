@@ -47,7 +47,29 @@ def clear_column_names_cache():
 # ─────────────────────────────────────────────
 st.set_page_config(
     page_title="AGL | Analytics",
-    page_icon="🌐",
+    page_icon=(
+        next(
+            (
+                p for p in (
+                    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Images', 'Logo_streamLit.png'),
+                    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Images', 'Logo _AGL.png'),
+                    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Images', 'Logo_AGL.ico'),
+                    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icon.ico'),
+                )
+                if os.path.exists(p)
+            ),
+            chr(0x1F310),
+        )
+    ), "Images", "Logo_streamLit.png"),
+                    os.path.join(os.path.dirname(os.path.abspath(__file__)), "Images", "Logo _AGL.png"),
+                    os.path.join(os.path.dirname(os.path.abspath(__file__)), "Images", "Logo_AGL.ico"),
+                    os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.ico"),
+                )
+                if os.path.exists(p)
+            ),
+            "🌐",
+        )
+    ),
     layout="wide",
     initial_sidebar_state="expanded",
 )
