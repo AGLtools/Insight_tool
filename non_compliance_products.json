@@ -1,0 +1,8 @@
+{
+  "_comment": "Liste des marchandises (Libellé marchandise) à exclure de la vue 'Marché Hors Transitaires Intégrés' (slide 2 du PPTX et tableau TOP 20 du dashboard). Les motifs sont matchés en MAJUSCULES via str.contains (insensible à la casse, sous-chaîne).",
+  "patterns": [
+    "CONGEL",
+    "FRIPERIE",
+    "QUINCAILLERIE"
+  ]
+}

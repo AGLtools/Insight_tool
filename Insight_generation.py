@@ -66,10 +66,16 @@ OPTIONAL_COLS_AERIEN = {
 # ─────────────────────────────────────────────
 #  HELPERS (dupliqués depuis app.py)
 # ─────────────────────────────────────────────
-# Couples (Transitaire, Importateurs Clés) à exclure pour la vue
-# « Marché Hors Transitaires Intégrés » (slide 2 du PPTX & dashboard).
-# Sources : tableau de référence interne AGL (TRANSITAIRES INTÉGRÉS).
-INTEGRATED_TRANSITAIRES = {
+# Fichiers de configuration (modifiables via UI sans toucher au code)
+NON_COMPLIANCE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    'non_compliance_products.json')
+INTEGRATED_TRANSITAIRES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                             'integrated_transitaires.json')
+
+# Valeurs par défaut utilisées si les fichiers JSON sont absents / vides / invalides.
+# Ces couples (Transitaire intégré, Importateurs clés) sont issus du tableau
+# de référence interne AGL « TRANSITAIRES INTÉGRÉS ».
+_DEFAULT_INTEGRATED_TRANSITAIRES = {
     'STRACOTRANS': ['SOCIAM', 'CI PLASTIQUES', 'COTIPLAST',
                     'STE.INDUS.PRDT.PLAS.ET CHIMIQU', 'NANO CI',
                     'STE AFRIC.FABRICA.DE PLASTIQUE'],
@@ -88,10 +94,68 @@ INTEGRATED_TRANSITAIRES = {
     'ELDATRANS': ['CACOMIAF CI', 'SABIMEX'],
     'MANTRA IVOIRE': ['OLAM IVOIRE CI'],
 }
+_DEFAULT_NON_COMPLIANCE_PATTERNS = ['CONGEL', 'FRIPERIE', 'QUINCAILLERIE']
 
-# Marchandises « non compliance » à exclure de la vue Hors Transitaires Intégrés
-# (PRODUITS MER CONGELE, VIANDES CONGELEES, FRIPERIE, QUINCAILLERIE).
-NON_COMPLIANCE_PRODUCT_PATTERN = r'CONGEL|FRIPERIE|QUINCAILLERIE'
+
+def load_non_compliance_patterns():
+    """Retourne la liste des motifs (str.contains, MAJUSCULES) de marchandises
+    « non compliance » à exclure. Lit le fichier JSON ou retourne les défauts."""
+    if os.path.exists(NON_COMPLIANCE_FILE):
+        try:
+            with open(NON_COMPLIANCE_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            patterns = data.get('patterns', [])
+            if isinstance(patterns, list) and patterns:
+                return [str(p).upper().strip() for p in patterns if str(p).strip()]
+        except Exception:
+            pass
+    return list(_DEFAULT_NON_COMPLIANCE_PATTERNS)
+
+
+def save_non_compliance_patterns(patterns):
+    try:
+        with open(NON_COMPLIANCE_FILE, 'w', encoding='utf-8') as f:
+            json.dump({
+                '_comment': "Liste des marchandises (Libellé marchandise) à exclure "
+                            "de la vue 'Marché Hors Transitaires Intégrés'. "
+                            "Matching en MAJUSCULES via str.contains.",
+                'patterns': [str(p).upper().strip() for p in patterns if str(p).strip()],
+            }, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception:
+        return False
+
+
+def load_integrated_transitaires():
+    """Retourne le dict {transitaire_pattern: [importateur_patterns...]}."""
+    if os.path.exists(INTEGRATED_TRANSITAIRES_FILE):
+        try:
+            with open(INTEGRATED_TRANSITAIRES_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            couples = data.get('couples', {})
+            if isinstance(couples, dict) and couples:
+                return {str(k).upper().strip(): [str(v).upper().strip() for v in vs]
+                        for k, vs in couples.items() if str(k).strip() and isinstance(vs, list)}
+        except Exception:
+            pass
+    return {k: list(v) for k, v in _DEFAULT_INTEGRATED_TRANSITAIRES.items()}
+
+
+def save_integrated_transitaires(couples):
+    try:
+        clean = {str(k).upper().strip(): [str(v).upper().strip() for v in vs if str(v).strip()]
+                 for k, vs in couples.items() if str(k).strip()}
+        with open(INTEGRATED_TRANSITAIRES_FILE, 'w', encoding='utf-8') as f:
+            json.dump({
+                '_comment': "Couples (Transitaire intégré, Importateurs clés) à "
+                            "exclure de la vue 'Marché Hors Transitaires Intégrés'. "
+                            "Une ligne est exclue si Transitaire contient la clé ET "
+                            "Destinataire contient l'un des importateurs.",
+                'couples': clean,
+            }, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception:
+        return False
 
 
 def apply_marche_hors_integres_filter(df, trans_col='Transitaire',
@@ -103,8 +167,9 @@ def apply_marche_hors_integres_filter(df, trans_col='Transitaire',
     (slide 2 PPTX & onglet TOP 20 Transitaires du dashboard) :
       1. Pays de livraison = COTE D'IVOIRE (si la colonne existe)
       2. Exclusion des couples (Transitaire intégré, Importateur clé)
-      3. Exclusion des marchandises « non compliance » (Congelés / Friperie /
-         Quincaillerie) – si la colonne libellé existe.
+         définis dans ``integrated_transitaires.json``
+      3. Exclusion des marchandises « non compliance » (motifs définis dans
+         ``non_compliance_products.json``) si la colonne libellé existe.
     Les lignes NON APURE (transitaire vide / 0 / NON APURE) sont conservées :
     elles sont agrégées dans la ligne « AUTRES TRANSITAIRES ».
     """
@@ -121,23 +186,30 @@ def apply_marche_hors_integres_filter(df, trans_col='Transitaire',
             out = out[mask_ci]
 
     # 2. Exclusion couples (Transitaire, Importateur clé)
-    if trans_col in out.columns and dest_col in out.columns:
+    integrated = load_integrated_transitaires()
+    if integrated and trans_col in out.columns and dest_col in out.columns:
         trans_u = out[trans_col].fillna('').astype(str).str.upper()
         dest_u = out[dest_col].fillna('').astype(str).str.upper()
         mask_integrated = pd.Series(False, index=out.index)
-        for trans_pat, importers in INTEGRATED_TRANSITAIRES.items():
-            m_t = trans_u.str.contains(re.escape(trans_pat.upper()), na=False)
+        for trans_pat, importers in integrated.items():
+            if not trans_pat or not importers:
+                continue
+            m_t = trans_u.str.contains(re.escape(trans_pat), na=False)
             m_i = pd.Series(False, index=out.index)
             for imp in importers:
-                m_i |= dest_u.str.contains(re.escape(imp.upper()), na=False)
+                if imp:
+                    m_i |= dest_u.str.contains(re.escape(imp), na=False)
             mask_integrated |= (m_t & m_i)
         out = out[~mask_integrated]
 
     # 3. Exclusion marchandises non compliance
-    if lib_col in out.columns:
-        lib_u = out[lib_col].fillna('').astype(str).str.upper()
-        mask_nc = lib_u.str.contains(NON_COMPLIANCE_PRODUCT_PATTERN, regex=True, na=False)
-        out = out[~mask_nc]
+    nc_patterns = load_non_compliance_patterns()
+    if nc_patterns and lib_col in out.columns:
+        regex = '|'.join(re.escape(p) for p in nc_patterns if p)
+        if regex:
+            lib_u = out[lib_col].fillna('').astype(str).str.upper()
+            mask_nc = lib_u.str.contains(regex, regex=True, na=False)
+            out = out[~mask_nc]
 
     return out
 
@@ -228,15 +300,19 @@ def compute_top20_transitaires_overview(df, current_year, previous_year, metric_
 
     def _row(name, vol_prv, vol_cur):
         var_u = vol_cur - vol_prv
-        var_p = (var_u / vol_prv * 100) if vol_prv > 0 else (100.0 if vol_cur > 0 else 0.0)
+        # Variation en fraction (0-1) pour permettre le format "percent" Streamlit
+        var_p = (var_u / vol_prv) if vol_prv > 0 else (1.0 if vol_cur > 0 else 0.0)
+        # PDM stockés en fraction (0-1) — formatés via column_config="percent"
+        # côté UI ; cohérent avec le menu de format des colonnes Streamlit
+        # qui multiplie par 100 lorsqu'il applique « Percentage ».
         return {
             'Transitaire': name,
             f'Volume {previous_year}': int(round(vol_prv)),
-            f'PDM {previous_year} (%)': round(vol_prv / total_prv * 100, 1) if total_prv > 0 else 0.0,
+            f'PDM {previous_year}': (vol_prv / total_prv) if total_prv > 0 else 0.0,
             f'Volume {current_year}': int(round(vol_cur)),
-            f'PDM {current_year} (%)': round(vol_cur / total_cur * 100, 1) if total_cur > 0 else 0.0,
+            f'PDM {current_year}': (vol_cur / total_cur) if total_cur > 0 else 0.0,
             "Variation d'unite": int(round(var_u)),
-            'Variation %': round(var_p, 1),
+            'Variation %': round(var_p, 4),
         }
 
     rows = []
@@ -1820,6 +1896,166 @@ def build_section_from_filtered_df(df, dtype, flux_letter, period_mode, period_m
 # ─────────────────────────────────────────────
 #  UI STREAMLIT — PAGE RAPPORT PPTX STANDALONE
 # ─────────────────────────────────────────────
+def _render_marche_hors_integres_config(st, df=None, key_prefix="pptx"):
+    """UI pour gérer dynamiquement les filtres de la slide 2 PPTX et du
+    tableau TOP 20 du dashboard (transitaires intégrés + marchandises non
+    compliance). Les modifications sont persistées dans des fichiers JSON.
+
+    Parameters
+    ----------
+    df : pd.DataFrame or None
+        Dataset chargé. Quand fourni, la section « marchandises non compliance »
+        affiche un multiselect peuplé depuis les valeurs réelles du jeu de données
+        (colonne *Libellé marchandise*), ce qui évite la saisie manuelle.
+    key_prefix : str
+        Préfixe unique pour les clés Streamlit — évite les collisions entre la
+        page PPTX et le dashboard.
+    """
+    kp = key_prefix  # raccourci
+    with st.expander("Configuration — Marché Hors Transitaires Intégrés (slide 2)",
+                     expanded=False):
+        st.caption(
+            "Ces filtres sont appliqués automatiquement à la slide 2 du PPTX "
+            "et au tableau TOP 20 TRANSITAIRES du dashboard. "
+            "Les modifications sont sauvegardées dans `non_compliance_products.json` "
+            "et `integrated_transitaires.json`."
+        )
+
+        # ─── Marchandises Non Compliance ───────────────────────────────────
+        st.markdown("**Marchandises « non compliance » à exclure**")
+        nc_patterns = load_non_compliance_patterns()
+
+        lib_col = 'Libellé marchandise'
+        has_lib = (df is not None and not df.empty and lib_col in df.columns)
+
+        if has_lib:
+            # Construire la liste des produits disponibles dans le dataset
+            all_products = sorted(
+                df[lib_col].dropna().astype(str).str.strip().str.upper().unique().tolist()
+            )
+            # Pré-sélection : produits du dataset correspondant aux patterns actifs
+            pre_selected = [
+                p for p in all_products
+                if any(
+                    pat.strip().upper() in p
+                    for pat in nc_patterns
+                )
+            ]
+            st.caption(
+                f"{len(all_products)} produits disponibles dans les données. "
+                "Sélectionnez ceux à exclure, puis cliquez sur **Appliquer**."
+            )
+            # ── formulaire : sélection sans rechargement ──────────────────
+            with st.form(f"{kp}_nc_form", clear_on_submit=False):
+                nc_selection = st.multiselect(
+                    "Produits à exclure (non compliance)",
+                    options=all_products,
+                    default=pre_selected,
+                    key=f"{kp}_nc_multiselect",
+                    help="La sélection n'est prise en compte qu'après « Appliquer »."
+                )
+                submitted_nc = st.form_submit_button("Appliquer la sélection")
+            if submitted_nc:
+                if save_non_compliance_patterns(nc_selection):
+                    st.success(f"{len(nc_selection)} produit(s) sauvegardé(s).")
+                    st.rerun()
+                else:
+                    st.error("Échec de la sauvegarde.")
+        else:
+            # Fallback saisie manuelle (page PPTX sans données chargées)
+            st.caption("Motifs recherchés (sous-chaîne, insensible à la casse) "
+                       "dans la colonne *Libellé marchandise*. "
+                       "Chargez un fichier de données pour obtenir une sélection dynamique.")
+            with st.form(f"{kp}_nc_form", clear_on_submit=False):
+                nc_input = st.text_area(
+                    "Un motif par ligne",
+                    value="\n".join(nc_patterns), height=120,
+                    key=f"{kp}_nc_textarea",
+                    help="Ex.: CONGEL, FRIPERIE, QUINCAILLERIE."
+                )
+                submitted_nc = st.form_submit_button("Appliquer")
+            if submitted_nc:
+                new_list = [ln.strip().upper() for ln in nc_input.splitlines()
+                            if ln.strip()]
+                if save_non_compliance_patterns(new_list):
+                    st.success(f"{len(new_list)} motif(s) sauvegardé(s).")
+                    st.rerun()
+                else:
+                    st.error("Échec de la sauvegarde.")
+
+        st.caption(
+            f"Actif : **{len(nc_patterns)}** entrée(s) — "
+            f"{', '.join(nc_patterns[:5]) if nc_patterns else '(aucune)'}"
+            + (" …" if len(nc_patterns) > 5 else "")
+        )
+
+        st.markdown("---")
+
+        # ─── Transitaires Intégrés ─────────────────────────────────────────
+        st.markdown("**Transitaires intégrés et leurs importateurs clés**")
+        st.caption("Une ligne du dataset est exclue si SON *Transitaire* contient "
+                   "le motif clé ET son *Destinataire* contient l'un des "
+                   "importateurs associés.")
+        integrated = load_integrated_transitaires()
+
+        # Affichage tableau récapitulatif
+        if integrated:
+            recap = pd.DataFrame([
+                {'Transitaire (motif)': k,
+                 'Importateurs clés': ' | '.join(v),
+                 'Nb importateurs': len(v)}
+                for k, v in integrated.items()
+            ])
+            st.dataframe(recap, use_container_width=True, hide_index=True, height=240)
+
+        # Ajouter / mettre à jour un transitaire
+        with st.form(f"{kp}_integrated_add_form", clear_on_submit=True):
+            st.markdown("*Ajouter / mettre à jour un transitaire intégré*")
+            cc1, cc2 = st.columns([1, 2])
+            with cc1:
+                new_trans = st.text_input("Motif Transitaire",
+                                           placeholder="Ex.: STRACOTRANS",
+                                           key=f"{kp}_new_trans")
+            with cc2:
+                new_imps = st.text_input("Importateurs clés (séparés par |)",
+                                          placeholder="Ex.: SOCIAM | NANO CI | COTIPLAST",
+                                          key=f"{kp}_new_imps")
+            submitted_add = st.form_submit_button("Ajouter / Mettre à jour")
+            if submitted_add:
+                ikey = (new_trans or "").strip().upper()
+                imps = [s.strip().upper() for s in (new_imps or "").split('|')
+                        if s.strip()]
+                if not ikey or not imps:
+                    st.warning("Renseignez le transitaire ET au moins un importateur.")
+                else:
+                    integrated[ikey] = imps
+                    if save_integrated_transitaires(integrated):
+                        st.success(f"« {ikey} » → {len(imps)} importateur(s) sauvegardé(s).")
+                        st.rerun()
+                    else:
+                        st.error("Échec de la sauvegarde.")
+
+        # Supprimer un transitaire — aussi dans un form pour éviter les rechargements
+        if integrated:
+            with st.form(f"{kp}_integrated_remove_form", clear_on_submit=True):
+                st.markdown("*Supprimer un transitaire intégré*")
+                to_remove = st.multiselect(
+                    "Sélectionnez les transitaires à supprimer",
+                    options=sorted(integrated.keys()),
+                    key=f"{kp}_hti_remove_select"
+                )
+                rsub = st.form_submit_button("Supprimer")
+                if rsub:
+                    if to_remove:
+                        for k in to_remove:
+                            integrated.pop(k, None)
+                        if save_integrated_transitaires(integrated):
+                            st.success(f"{len(to_remove)} transitaire(s) supprimé(s).")
+                            st.rerun()
+                    else:
+                        st.warning("Aucun transitaire sélectionné.")
+
+
 def render_pptx_page(st):
     """Page Streamlit dédiée à la génération du rapport PPTX."""
     st.markdown("""
@@ -1955,6 +2191,9 @@ def render_pptx_page(st):
             key="pptx_pays_filter_aer",
             help="Aéroport de chargement ou déchargement — appliqué uniquement aux fichiers aériens."
         )
+
+    # ── Configuration « Marché Hors Transitaires Intégrés » (slide 2) ──────
+    _render_marche_hors_integres_config(st)
 
     # ── ÉTAPE 4 : Génération ────────────────────────────────────────────────
     st.markdown('<div class="step-header">ÉTAPE 4 — GÉNÉRATION DU RAPPORT</div>',

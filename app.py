@@ -496,7 +496,15 @@ def editable_dataframe(df, key_prefix, has_total_row=True, use_global_names=Fals
     column_config = {}
     for col in df_final.columns:
         if 'PDM' in col.upper():
-            column_config[col] = st.column_config.NumberColumn(col, format="%d %%")
+            # Stocker en fraction (0-1) et utiliser le preset "percent" :
+            # ainsi le menu de formatage interactif des colonnes Streamlit
+            # (« Percentage ») reste cohérent avec l'affichage par défaut
+            # (au lieu de multiplier par 100 une valeur déjà en pourcent).
+            try:
+                df_final[col] = pd.to_numeric(df_final[col], errors='coerce').fillna(0) / 100.0
+            except Exception:
+                pass
+            column_config[col] = st.column_config.NumberColumn(col, format="percent")
 
     st.dataframe(df_final, use_container_width=True, hide_index=True, column_config=column_config)
     return df_final
@@ -1566,6 +1574,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
 from Insight_generation import (
     generate_pptx_report,
     render_pptx_page,
+    _render_marche_hors_integres_config,
 )
 
 
@@ -1930,9 +1939,29 @@ if st.session_state.validated:
                                     f"<b style='color:#E5A823;'>TABLEAU TOP 20 TRANSITAIRES{title_suffix} — "
                                     f"{prv_y} VS {cur_y}</b>",
                                     unsafe_allow_html=True)
-                                st.dataframe(board_df, use_container_width=True, hide_index=True, height=560)
+                                # Les PDM et Variation % sont stockés en fraction (0-1) :
+                                # on utilise le preset "percent" de Streamlit qui multiplie
+                                # automatiquement par 100, ce qui rend l'affichage cohérent
+                                # avec le menu « format → Percentage » de la colonne.
+                                pct_cols = [c for c in board_df.columns
+                                            if c.startswith('PDM ') or c == 'Variation %']
+                                int_cols = [c for c in board_df.columns
+                                            if c.startswith('Volume ') or c == "Variation d'unite"]
+                                top20_col_cfg = {
+                                    c: st.column_config.NumberColumn(c, format="percent")
+                                    for c in pct_cols
+                                }
+                                for c in int_cols:
+                                    top20_col_cfg[c] = st.column_config.NumberColumn(c, format="%d")
+                                st.dataframe(board_df, use_container_width=True,
+                                             hide_index=True, height=560,
+                                             column_config=top20_col_cfg)
                 except Exception as _e:
                     pass
+
+            # ── Configuration filtres slide 2 / TOP 20 (dans le dashboard) ──
+            if apply_hti_filter:
+                _render_marche_hors_integres_config(st, df=df_globe, key_prefix="dash")
 
     # ─────────────────────────────────────────────
     #  FONCTION render_dashboard
@@ -2100,7 +2129,12 @@ if st.session_state.validated:
                     disp_top100[c] = pd.to_numeric(disp_top100[c], errors='coerce').fillna(0).astype(int)
             disp_top100 = disp_top100.reset_index(drop=True)
             disp_top100.index = disp_top100.index + 1
-            col_cfg_ts = {c: st.column_config.NumberColumn(c, format="%d %%")
+            # PDM stockés en fraction (0-1) + preset "percent" : cohérent avec le
+            # menu de format des colonnes Streamlit.
+            for c in disp_top100.columns:
+                if 'PDM' in c:
+                    disp_top100[c] = disp_top100[c] / 100.0
+            col_cfg_ts = {c: st.column_config.NumberColumn(c, format="percent")
                           for c in disp_top100.columns if 'PDM' in c}
             st.dataframe(disp_top100, use_container_width=True, hide_index=False, column_config=col_cfg_ts, height=500)
 
@@ -2260,52 +2294,52 @@ if st.session_state.validated:
             if not all_clients_for_blacklist:
                 st.info("Aucun client disponible.")
             else:
-                # FIX: utiliser on_change=None et stocker dans session_state local
-                # pour éviter le rechargement à chaque sélection
-                selected_for_exclusion = st.multiselect(
-                    "Choisissez les clients à ajouter à la liste noire",
-                    options=[c for c in all_clients_for_blacklist if c not in current_blacklist],
-                    default=[],
-                    key="exclusion_multiselect_conc"
-                    # Pas de on_change ici — le bouton déclenchera l'action
-                )
-
-                col_btn1, col_btn2, col_btn3 = st.columns(3)
-                with col_btn1:
-                    # FIX: utiliser un form_submit pattern via bouton normal
-                    # mais stocker d'abord dans session_state, puis appliquer et rerun
-                    if st.button("Ajouter à la liste noire", type="primary", key="btn_add_blacklist"):
-                        if selected_for_exclusion:
-                            add_excluded_clients(selected_for_exclusion)
-                            st.success(f"{len(selected_for_exclusion)} client(s) ajouté(s) à la liste noire.")
-                            st.rerun()
-                        else:
-                            st.warning("Aucun client sélectionné.")
-
-                with col_btn2:
-                    if current_blacklist:
-                        preview = ', '.join(current_blacklist[:5])
-                        if len(current_blacklist) > 5:
-                            preview += f"... (+{len(current_blacklist)-5})"
-                        st.info(f"Liste noire actuelle : {len(current_blacklist)} clients — {preview}")
-                    else:
-                        st.info("Aucun client exclu pour l'instant.")
-
-                with col_btn3:
-                    if st.button("Vider la liste noire", type="secondary", key="btn_clear_blacklist"):
-                        save_excluded_clients([])
-                        st.success("Liste noire vidée.")
+                # Formulaire : la sélection ne déclenche PAS de rechargement —
+                # seul le clic sur « Ajouter » provoque le rerun.
+                with st.form("blacklist_add_form", clear_on_submit=True):
+                    selected_for_exclusion = st.multiselect(
+                        "Choisissez les clients à ajouter à la liste noire",
+                        options=[c for c in all_clients_for_blacklist if c not in current_blacklist],
+                        default=[],
+                        key="exclusion_multiselect_conc"
+                    )
+                    submitted_add_bl = st.form_submit_button(
+                        "Ajouter à la liste noire", type="primary"
+                    )
+                if submitted_add_bl:
+                    if selected_for_exclusion:
+                        add_excluded_clients(selected_for_exclusion)
+                        st.success(f"{len(selected_for_exclusion)} client(s) ajouté(s) à la liste noire.")
                         st.rerun()
+                    else:
+                        st.warning("Aucun client sélectionné.")
+
+                if current_blacklist:
+                    preview = ', '.join(current_blacklist[:5])
+                    if len(current_blacklist) > 5:
+                        preview += f" … (+{len(current_blacklist)-5})"
+                    st.info(f"Liste noire actuelle : {len(current_blacklist)} clients — {preview}")
+                else:
+                    st.info("Aucun client exclu pour l'instant.")
+
+                if st.button("Vider la liste noire", type="secondary", key="btn_clear_blacklist"):
+                    save_excluded_clients([])
+                    st.success("Liste noire vidée.")
+                    st.rerun()
 
         # ── Section Retirer de la liste noire ───────────────────────────────
         if current_blacklist:
             with st.expander("Retirer des clients de la liste noire", expanded=False):
-                to_remove = st.multiselect(
-                    "Clients à retirer",
-                    options=current_blacklist,
-                    key="remove_multiselect_conc"
-                )
-                if st.button("Retirer de la liste noire", key="btn_remove_blacklist"):
+                # Formulaire : aucun rechargement tant que l'utilisateur
+                # n'a pas cliqué sur « Retirer ».
+                with st.form("blacklist_remove_form", clear_on_submit=True):
+                    to_remove = st.multiselect(
+                        "Clients à retirer",
+                        options=current_blacklist,
+                        key="remove_multiselect_conc"
+                    )
+                    submitted_rm_bl = st.form_submit_button("Retirer de la liste noire")
+                if submitted_rm_bl:
                     if to_remove:
                         remove_excluded_clients(to_remove)
                         st.success(f"{len(to_remove)} client(s) retiré(s).")

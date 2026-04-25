@@ -1,0 +1,16 @@
+{
+  "_comment": "Couples (Transitaire intégré, Importateurs clés) à exclure de la vue 'Marché Hors Transitaires Intégrés'. Une ligne du dataset est exclue si SON Transitaire contient l'un des motifs (clé) ET son Destinataire contient l'un des importateurs associés. Matching en MAJUSCULES via str.contains.",
+  "couples": {
+    "STRACOTRANS": ["SOCIAM", "CI PLASTIQUES", "COTIPLAST", "STE.INDUS.PRDT.PLAS.ET CHIMIQU", "NANO CI", "STE AFRIC.FABRICA.DE PLASTIQUE"],
+    "E.TRANSIT": ["RIMCO CI", "SETACI", "BERNABE CI", "STE DE TRANSFO.INDUST.EN CI SA", "MONDIAL CYCLES NOUVELLE CI", "UNIVERSELLE INDUSTRIE CI", "PEYRISSAC CI"],
+    "GLOBAL MANUTENTION": ["CAPRACI", "CIE AFRICAINE DE PROD", "FLEXIBLE PACKAGING CI", "LES MOULINS MODERNES DE CI", "EMBACI", "MICI", "STE DE DISTRI.DE TTES MSE CI"],
+    "TRANSIT CENTER": ["PROSUMA"],
+    "TGR": ["SIPROCHIM CI"],
+    "MOVIS TRANSIT": ["SUCRIVOIRE", "PALMCI"],
+    "TTS": ["NEXANS COTE D", "TOLES IVOIRE CI"],
+    "MONDIAL TRANSIT": ["STE REDA ET FILS CI"],
+    "PACKING SERVICE": ["TOLES IVOIRE CI"],
+    "ELDATRANS": ["CACOMIAF CI", "SABIMEX"],
+    "MANTRA IVOIRE": ["OLAM IVOIRE CI"]
+  }
+}
