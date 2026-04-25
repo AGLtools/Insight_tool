@@ -66,6 +66,82 @@ OPTIONAL_COLS_AERIEN = {
 # ─────────────────────────────────────────────
 #  HELPERS (dupliqués depuis app.py)
 # ─────────────────────────────────────────────
+# Couples (Transitaire, Importateurs Clés) à exclure pour la vue
+# « Marché Hors Transitaires Intégrés » (slide 2 du PPTX & dashboard).
+# Sources : tableau de référence interne AGL (TRANSITAIRES INTÉGRÉS).
+INTEGRATED_TRANSITAIRES = {
+    'STRACOTRANS': ['SOCIAM', 'CI PLASTIQUES', 'COTIPLAST',
+                    'STE.INDUS.PRDT.PLAS.ET CHIMIQU', 'NANO CI',
+                    'STE AFRIC.FABRICA.DE PLASTIQUE'],
+    'E.TRANSIT': ['RIMCO CI', 'SETACI', 'BERNABE CI',
+                  'STE DE TRANSFO.INDUST.EN CI SA', 'MONDIAL CYCLES NOUVELLE CI',
+                  'UNIVERSELLE INDUSTRIE CI', 'PEYRISSAC CI'],
+    'GLOBAL MANUTENTION': ['CAPRACI', 'CIE AFRICAINE DE PROD',
+                           'FLEXIBLE PACKAGING CI', 'LES MOULINS MODERNES DE CI',
+                           'EMBACI', 'MICI', 'STE DE DISTRI.DE TTES MSE CI'],
+    'TRANSIT CENTER': ['PROSUMA'],
+    'TGR': ['SIPROCHIM CI'],
+    'MOVIS TRANSIT': ['SUCRIVOIRE', 'PALMCI'],
+    'TTS': ['NEXANS COTE D', 'TOLES IVOIRE CI'],
+    'MONDIAL TRANSIT': ['STE REDA ET FILS CI'],
+    'PACKING SERVICE': ['TOLES IVOIRE CI'],
+    'ELDATRANS': ['CACOMIAF CI', 'SABIMEX'],
+    'MANTRA IVOIRE': ['OLAM IVOIRE CI'],
+}
+
+# Marchandises « non compliance » à exclure de la vue Hors Transitaires Intégrés
+# (PRODUITS MER CONGELE, VIANDES CONGELEES, FRIPERIE, QUINCAILLERIE).
+NON_COMPLIANCE_PRODUCT_PATTERN = r'CONGEL|FRIPERIE|QUINCAILLERIE'
+
+
+def apply_marche_hors_integres_filter(df, trans_col='Transitaire',
+                                       dest_col='Destinataire',
+                                       pays_col='Pays de livraison',
+                                       lib_col='Libellé marchandise'):
+    """
+    Applique les filtres de la vue « Marché Hors Transitaires Intégrés »
+    (slide 2 PPTX & onglet TOP 20 Transitaires du dashboard) :
+      1. Pays de livraison = COTE D'IVOIRE (si la colonne existe)
+      2. Exclusion des couples (Transitaire intégré, Importateur clé)
+      3. Exclusion des marchandises « non compliance » (Congelés / Friperie /
+         Quincaillerie) – si la colonne libellé existe.
+    Les lignes NON APURE (transitaire vide / 0 / NON APURE) sont conservées :
+    elles sont agrégées dans la ligne « AUTRES TRANSITAIRES ».
+    """
+    if df is None or df.empty:
+        return df
+    out = df
+
+    # 1. Pays de livraison = COTE D'IVOIRE
+    if pays_col in out.columns:
+        pays_u = out[pays_col].fillna('').astype(str).str.upper()
+        mask_ci = pays_u.str.contains("COTE D'IVOIRE", regex=False, na=False) | \
+                  pays_u.str.contains("COTE D IVOIRE", regex=False, na=False)
+        if mask_ci.any():
+            out = out[mask_ci]
+
+    # 2. Exclusion couples (Transitaire, Importateur clé)
+    if trans_col in out.columns and dest_col in out.columns:
+        trans_u = out[trans_col].fillna('').astype(str).str.upper()
+        dest_u = out[dest_col].fillna('').astype(str).str.upper()
+        mask_integrated = pd.Series(False, index=out.index)
+        for trans_pat, importers in INTEGRATED_TRANSITAIRES.items():
+            m_t = trans_u.str.contains(re.escape(trans_pat.upper()), na=False)
+            m_i = pd.Series(False, index=out.index)
+            for imp in importers:
+                m_i |= dest_u.str.contains(re.escape(imp.upper()), na=False)
+            mask_integrated |= (m_t & m_i)
+        out = out[~mask_integrated]
+
+    # 3. Exclusion marchandises non compliance
+    if lib_col in out.columns:
+        lib_u = out[lib_col].fillna('').astype(str).str.upper()
+        mask_nc = lib_u.str.contains(NON_COMPLIANCE_PRODUCT_PATTERN, regex=True, na=False)
+        out = out[~mask_nc]
+
+    return out
+
+
 def load_excluded_clients():
     if os.path.exists(EXCLUDED_CLIENTS_FILE):
         try:
@@ -114,15 +190,25 @@ def _select_primary_competitor_rows(df_comp, client_col, trans_col='Transitaire'
         return pd.DataFrame(columns=[client_col, trans_col, volume_col])
     return pd.DataFrame(selected_rows)
 
-def compute_top20_transitaires_overview(df, current_year, previous_year, metric_col='NOMBRE_TEU'):
+def compute_top20_transitaires_overview(df, current_year, previous_year, metric_col='NOMBRE_TEU',
+                                         filter_marche_hors_integres=False):
     """
     Calcule la vue Top 20 Transitaires (utilisée à la fois sur la slide 2
     et dans le Dashboard). Retourne un DataFrame prêt à afficher avec :
     Rang, Transitaire, Volume prv, PDM prv, Volume cur, PDM cur, Variation, Variation %
     + 3 lignes de totaux (TOP 20, AUTRES, TOTAL MARCHE).
+
+    Si ``filter_marche_hors_integres=True``, applique les filtres de la vue
+    « Marché Hors Transitaires Intégrés » (Pays = CI, exclusion des couples
+    Transitaires intégrés / Importateurs clés, exclusion des marchandises
+    non compliance).
     """
     if df is None or df.empty or 'Transitaire' not in df.columns or metric_col not in df.columns:
         return pd.DataFrame()
+    if filter_marche_hors_integres:
+        df = apply_marche_hors_integres_filter(df)
+        if df is None or df.empty:
+            return pd.DataFrame()
     df_cur = df[df['Année escale'] == current_year]
     df_prv = df[df['Année escale'] == previous_year]
     g_cur = df_cur.groupby('Transitaire')[metric_col].sum()
@@ -131,9 +217,14 @@ def compute_top20_transitaires_overview(df, current_year, previous_year, metric_
     merged = merged[merged.index.astype(str).str.strip() != '']
     merged = merged[~merged.index.astype(str).str.upper().isin(['0', 'NAN', 'NONE'])]
     total_cur = float(merged['cur'].sum()); total_prv = float(merged['prv'].sum())
-    merged = merged.sort_values('cur', ascending=False)
-    top20 = merged.head(20).copy()
-    autres = merged.iloc[20:]
+    # NON APURE est conservé dans le total mais exclu du classement Top 20 :
+    # son volume est ajouté à la ligne « AUTRES TRANSITAIRES ».
+    idx_upper = merged.index.astype(str).str.strip().str.upper()
+    napure_mask = (idx_upper == 'NON APURE')
+    napure = merged[napure_mask]
+    ranked = merged[~napure_mask].sort_values('cur', ascending=False)
+    top20 = ranked.head(20).copy()
+    autres = pd.concat([ranked.iloc[20:], napure])
 
     def _row(name, vol_prv, vol_cur):
         var_u = vol_cur - vol_prv
@@ -1018,6 +1109,14 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         if metric_col not in df.columns:
             return
 
+        # Filtres « Marché Hors Transitaires Intégrés » :
+        # - Pays de livraison = COTE D'IVOIRE
+        # - Exclusion des couples (Transitaire intégré, Importateur clé)
+        # - Exclusion des marchandises non compliance (Congelés/Friperie/Quincaillerie)
+        df = apply_marche_hors_integres_filter(df)
+        if df is None or df.empty:
+            return
+
         # Agrégation par transitaire
         df_cur = df[df['Année escale'] == current_year]
         df_prv = df[df['Année escale'] == previous_year] if not is_single else None
@@ -1027,15 +1126,20 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         else:
             g_prv = pd.Series(dtype=float)
         merged = pd.concat([g_cur.rename('cur'), g_prv.rename('prv')], axis=1).fillna(0)
-        # Exclure les valeurs vides / NON APURE / 0
+        # Exclure les valeurs vides / 0 / NaN
         merged = merged[merged.index.astype(str).str.strip() != '']
         merged = merged[~merged.index.astype(str).str.upper().isin(['0', 'NAN', 'NONE'])]
 
         total_cur = float(merged['cur'].sum())
         total_prv = float(merged['prv'].sum())
-        merged = merged.sort_values('cur', ascending=False)
-        top20 = merged.head(20).copy()
-        autres = merged.iloc[20:]
+        # NON APURE : conservé dans le total mais exclu du classement Top 20
+        # (volume agrégé dans la ligne « AUTRES TRANSITAIRES »).
+        idx_upper = merged.index.astype(str).str.strip().str.upper()
+        napure_mask = (idx_upper == 'NON APURE')
+        napure = merged[napure_mask]
+        ranked = merged[~napure_mask].sort_values('cur', ascending=False)
+        top20 = ranked.head(20).copy()
+        autres = pd.concat([ranked.iloc[20:], napure])
         autres_cur = float(autres['cur'].sum())
         autres_prv = float(autres['prv'].sum())
         top20_cur = float(top20['cur'].sum())

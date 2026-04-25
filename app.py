@@ -1913,11 +1913,21 @@ if st.session_state.validated:
                         years_avail = sorted(df_globe['Année escale'].dropna().unique().tolist())
                         if len(years_avail) >= 2:
                             cur_y = int(years_avail[-1]); prv_y = int(years_avail[-2])
-                            board_df = compute_top20_transitaires_overview(df_globe, cur_y, prv_y)
+                            # Mêmes filtres que la slide 2 (Marché Hors Transitaires Intégrés)
+                            # uniquement pour les flux Import Maritime.
+                            apply_hti_filter = (
+                                client_col == 'Destinataire'
+                                and st.session_state.get('data_type') != 'aerien'
+                            )
+                            board_df = compute_top20_transitaires_overview(
+                                df_globe, cur_y, prv_y,
+                                filter_marche_hors_integres=apply_hti_filter,
+                            )
                             if not board_df.empty:
                                 st.markdown("<hr style='border-color:#1a1a2e;margin:10px 0'>", unsafe_allow_html=True)
+                                title_suffix = " — MARCHÉ HORS TRANSITAIRES INTÉGRÉS" if apply_hti_filter else ""
                                 st.markdown(
-                                    f"<b style='color:#E5A823;'>TABLEAU TOP 20 TRANSITAIRES — "
+                                    f"<b style='color:#E5A823;'>TABLEAU TOP 20 TRANSITAIRES{title_suffix} — "
                                     f"{prv_y} VS {cur_y}</b>",
                                     unsafe_allow_html=True)
                                 st.dataframe(board_df, use_container_width=True, hide_index=True, height=560)
