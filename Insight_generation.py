@@ -2009,24 +2009,64 @@ def _render_marche_hors_integres_config(st, df=None, key_prefix="pptx"):
             st.dataframe(recap, use_container_width=True, hide_index=True, height=240)
 
         # Ajouter / mettre à jour un transitaire
+        # Construire les listes de choix depuis le dataset quand disponible
+        has_trans_col = (df is not None and not df.empty and 'Transitaire' in df.columns)
+        has_dest_col  = (df is not None and not df.empty and 'Destinataire' in df.columns)
+        all_trans_opts = (
+            sorted(df['Transitaire'].dropna().astype(str).str.strip().str.upper().unique().tolist())
+            if has_trans_col else []
+        )
+        all_dest_opts = (
+            sorted(df['Destinataire'].dropna().astype(str).str.strip().str.upper().unique().tolist())
+            if has_dest_col else []
+        )
+
         with st.form(f"{kp}_integrated_add_form", clear_on_submit=True):
             st.markdown("*Ajouter / mettre à jour un transitaire intégré*")
             cc1, cc2 = st.columns([1, 2])
             with cc1:
-                new_trans = st.text_input("Motif Transitaire",
-                                           placeholder="Ex.: STRACOTRANS",
-                                           key=f"{kp}_new_trans")
+                if all_trans_opts:
+                    new_trans = st.selectbox(
+                        "Motif Transitaire",
+                        options=[""] + all_trans_opts,
+                        key=f"{kp}_new_trans",
+                        help="Sélectionnez un transitaire présent dans les données."
+                    )
+                else:
+                    new_trans = st.text_input(
+                        "Motif Transitaire",
+                        placeholder="Ex.: STRACOTRANS",
+                        key=f"{kp}_new_trans"
+                    )
             with cc2:
-                new_imps = st.text_input("Importateurs clés (séparés par |)",
-                                          placeholder="Ex.: SOCIAM | NANO CI | COTIPLAST",
-                                          key=f"{kp}_new_imps")
+                if all_dest_opts:
+                    # Pré-sélection : importateurs déjà associés à ce transitaire
+                    existing_imps = integrated.get((new_trans or "").strip().upper(), [])
+                    new_imps_list = st.multiselect(
+                        "Importateurs clés",
+                        options=all_dest_opts,
+                        default=[d for d in existing_imps if d in all_dest_opts],
+                        key=f"{kp}_new_imps_multi",
+                        help="Sélectionnez les importateurs à associer à ce transitaire."
+                    )
+                    new_imps = None  # signale qu'on utilise new_imps_list
+                else:
+                    new_imps_list = None
+                    new_imps = st.text_input(
+                        "Importateurs clés (séparés par |)",
+                        placeholder="Ex.: SOCIAM | NANO CI | COTIPLAST",
+                        key=f"{kp}_new_imps"
+                    )
             submitted_add = st.form_submit_button("Ajouter / Mettre à jour")
             if submitted_add:
                 ikey = (new_trans or "").strip().upper()
-                imps = [s.strip().upper() for s in (new_imps or "").split('|')
-                        if s.strip()]
+                if new_imps_list is not None:
+                    imps = [s.strip().upper() for s in new_imps_list if s.strip()]
+                else:
+                    imps = [s.strip().upper() for s in (new_imps or "").split('|')
+                            if s.strip()]
                 if not ikey or not imps:
-                    st.warning("Renseignez le transitaire ET au moins un importateur.")
+                    st.warning("Sélectionnez un transitaire ET au moins un importateur.")
                 else:
                     integrated[ikey] = imps
                     if save_integrated_transitaires(integrated):
