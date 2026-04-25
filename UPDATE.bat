@@ -103,7 +103,12 @@ echo [1/8] Telechargement de app.py et Insight_generation.py...
 if not exist "excluded_clients.json" (
     %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/excluded_clients.json', 'excluded_clients.json')"
 )
-
+if not exist "non_compliance_products.json" (
+    %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/non_compliance_products.json', 'non_compliance_products.json')"
+)
+if not exist "integrated_transitaires.json" (
+    %PY% -c "import urllib.request; urllib.request.urlretrieve('%REPO_URL%/integrated_transitaires.json', 'integrated_transitaires.json')"
+)
 if %errorlevel% neq 0 (
     echo [ERREUR] Impossible de telecharger app.py ou excluded_clients.json
     echo Verifiez votre connexion internet.
