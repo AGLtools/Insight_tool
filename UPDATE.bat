@@ -24,7 +24,7 @@ if %errorlevel% equ 0 (
 
 echo [ERREUR] Aucun Python trouve !
 echo Placez le dossier python_portable a cote de ce script.
-pause
+if not defined AGL_SILENT pause
 exit /b 1
 
 :found_python
@@ -41,8 +41,15 @@ dir /b /ad "%~dp0python_portable\Lib\python*" >nul 2>&1 && (
 set REPO_OWNER=AGLtools
 set REPO_NAME=Insight_tool
 set BRANCH=Deployment
-set REPO_URL=https://raw.githubusercontent.com/%REPO_OWNER%/%REPO_NAME%/%BRANCH%
-set API_URL=https://api.github.com/repos/%REPO_OWNER%/%REPO_NAME%/commits/%BRANCH%
+
+:: AGL_TARGET_REF (env var) permet de choisir une autre branche, tag ou SHA.
+:: Defaut = branche de production.
+if not defined AGL_TARGET_REF set "AGL_TARGET_REF=%BRANCH%"
+set "REF=%AGL_TARGET_REF%"
+echo [INFO] Cible : %REF%
+
+set REPO_URL=https://raw.githubusercontent.com/%REPO_OWNER%/%REPO_NAME%/%REF%
+set API_URL=https://api.github.com/repos/%REPO_OWNER%/%REPO_NAME%/commits/%REF%
 
 :: ---- Verification de mise a jour ----
 echo [*] Verification de mise a jour...
@@ -81,7 +88,7 @@ if "!LOCAL_SHA!"=="!COMMIT_SHA!" (
     echo    Vous etes deja sur la derniere version [%COMMIT_SHA%].
     echo    Message : %COMMIT_MSG%
     echo.
-    pause
+    if not defined AGL_SILENT pause
     exit /b 0
 )
 
@@ -112,7 +119,7 @@ if not exist "integrated_transitaires.json" (
 if %errorlevel% neq 0 (
     echo [ERREUR] Impossible de telecharger app.py ou excluded_clients.json
     echo Verifiez votre connexion internet.
-    pause
+    if not defined AGL_SILENT pause
     exit /b 1
 )
 
@@ -163,4 +170,4 @@ echo.
 echo L'application a ete mise a jour avec succes.
 echo Relancez le raccourci "AGL Dashboard".
 echo.
-pause
+if not defined AGL_SILENT pause
