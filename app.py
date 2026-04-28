@@ -1918,8 +1918,14 @@ if st.session_state.validated:
                 # ── TABLEAU TOP 20 TRANSITAIRES (même contenu que slide 2 du PPTX) ──
                 try:
                     from Insight_generation import compute_top20_transitaires_overview
-                    if 'Année escale' in df_globe.columns:
-                        years_avail = sorted(df_globe['Année escale'].dropna().unique().tolist())
+                    # IMPORTANT: on utilise df_source (données complètes, tous les mois
+                    # des deux années) et NON df_globe (filtré par la période sélectée).
+                    # Le tableau TOP 20 doit refléter la totalité du fichier chargé,
+                    # exactement comme la slide 2 du PPTX — sinon un fichier 12 mois
+                    # avec "Mois Spécifique → Décembre" ne montrerait que décembre.
+                    df_top20_src = df_source.copy()
+                    if 'Année escale' in df_top20_src.columns:
+                        years_avail = sorted(df_top20_src['Année escale'].dropna().unique().tolist())
                         if len(years_avail) >= 2:
                             cur_y = int(years_avail[-1]); prv_y = int(years_avail[-2])
                             # Mêmes filtres que la slide 2 (Marché Hors Transitaires Intégrés)
@@ -1929,7 +1935,7 @@ if st.session_state.validated:
                                 and st.session_state.get('data_type') != 'aerien'
                             )
                             board_df = compute_top20_transitaires_overview(
-                                df_globe, cur_y, prv_y,
+                                df_top20_src, cur_y, prv_y,
                                 filter_marche_hors_integres=apply_hti_filter,
                             )
                             if not board_df.empty:
@@ -1961,7 +1967,7 @@ if st.session_state.validated:
 
             # ── Configuration filtres slide 2 / TOP 20 (dans le dashboard) ──
             if apply_hti_filter:
-                _render_marche_hors_integres_config(st, df=df_globe, key_prefix="dash")
+                _render_marche_hors_integres_config(st, df=df_source, key_prefix="dash")
 
     # ─────────────────────────────────────────────
     #  FONCTION render_dashboard
