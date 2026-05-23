@@ -518,7 +518,7 @@ def _categorize_clients(comp, client_col, cur_year, prev_year):
         'captive_down': captive[captive['Variation'] < 0].sort_values('Variation', ascending=True),
         'new':          c[(c[col_tm_prv] == 0) & (c[col_ag_cur] > 0)].sort_values('Variation', ascending=False),
         'lost':         c[(c[col_tm_cur] == 0) & (c[col_ag_prv] > 0)].sort_values('Variation', ascending=True),
-        'hausse':       non_captive[non_captive['Variation'] > 0].sort_values('Variation', ascending=False),
+        'hausse':       non_captive[non_captive['Variation'] >= 0].sort_values('Variation', ascending=False),
         'baisse':       non_captive[non_captive['Variation'] < 0].sort_values('Variation', ascending=True),
         'all': c,
     }
@@ -1577,7 +1577,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         inactifs = comp_a[(comp_a[col_tm_cur] == 0) & (comp_a[col_ag_prv] > 0)]
         pdm100_up = captive[captive['Variation'] >= 0]
         pdm100_down = captive[captive['Variation'] < 0]
-        others_up = non_captive[non_captive['Variation'] > 0]
+        others_up = non_captive[non_captive['Variation'] >= 0]
         others_down = non_captive[non_captive['Variation'] < 0]
         n_pdm100 = len(pdm100_up) + len(pdm100_down)
         total_pdm100 = int(pdm100_up['Variation'].sum() + pdm100_down['Variation'].sum())
