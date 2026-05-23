@@ -493,9 +493,9 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
 
 
 def _categorize_clients(comp, client_col, cur_year, prev_year):
+    # Pas de filtre liste noire ici : les Excel embarqués doivent refléter
+    # exactement les mêmes données que le dashboard et les slides PPTX.
     c = comp.copy()
-    # Liste noire (excluded_clients.json + mots-clés) appliquée comme dans le PPTX original
-    c = c[~c[client_col].apply(_is_excluded_client)]
     col_ag_cur = f'AGL_Volume_{cur_year}'
     col_ag_prv = f'AGL_Volume_{prev_year}'
     col_tm_cur = f'Total_Marche_{cur_year}'
@@ -503,14 +503,13 @@ def _categorize_clients(comp, client_col, cur_year, prev_year):
 
     c['Variation'] = c[col_ag_cur] - c[col_ag_prv]
     c['Var_Marche'] = c[col_tm_cur] - c[col_tm_prv]
+    # PDM en fraction (0-1) — comparaison directe sans arrondi pour rester
+    # cohérent avec update_analyse_group et render_dashboard (seuil 0.95 / 95)
     c['PDM_prv'] = c.apply(lambda r: r[col_ag_prv] / r[col_tm_prv] if r[col_tm_prv] > 0 else 0, axis=1)
     c['PDM_cur'] = c.apply(lambda r: r[col_ag_cur] / r[col_tm_cur] if r[col_tm_cur] > 0 else 0, axis=1)
-    # Test PDM sur la valeur ARRONDIE affichée (>= 95%) — aligné sur l'original
-    c['_PDM_prv_pct'] = (c['PDM_prv'] * 100).round().astype(int)
-    c['_PDM_cur_pct'] = (c['PDM_cur'] * 100).round().astype(int)
 
     active_both = c[(c[col_tm_prv] > 0) & (c[col_tm_cur] > 0)]
-    captive = active_both[(active_both['_PDM_prv_pct'] >= 95) & (active_both['_PDM_cur_pct'] >= 95) &
+    captive = active_both[(active_both['PDM_prv'] >= 0.95) & (active_both['PDM_cur'] >= 0.95) &
                           (active_both[col_ag_prv] > 0) & (active_both[col_ag_cur] > 0)]
     non_captive = active_both[~active_both.index.isin(captive.index)]
 
