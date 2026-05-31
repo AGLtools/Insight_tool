@@ -1792,6 +1792,7 @@ if st.session_state.validated:
             country_agg['lon'] = country_agg['Pays'].apply(lambda x: (_get_coords(x) or (0, 0))[1])
             country_agg = country_agg[(country_agg['lat'] != 0) | (country_agg['lon'] != 0)]
 
+            apply_hti_filter = False  # valeur par défaut si aucun graphe n'est rendu
             if country_agg.empty:
                 st.warning("Impossible de géolocaliser les pays du dataset.")
             else:
@@ -1916,7 +1917,6 @@ if st.session_state.validated:
                 st.plotly_chart(fig_bar, use_container_width=True, key="bar_transitaires")
 
                 # ── TABLEAU TOP 20 TRANSITAIRES (même contenu que slide 2 du PPTX) ──
-                apply_hti_filter = False  # valeur par défaut si le bloc try ne s'exécute pas
                 try:
                     from Insight_generation import compute_top20_transitaires_overview
                     if 'Année escale' in df_globe.columns:
