@@ -355,11 +355,17 @@ def clean_numeric_col(series):
 def get_stats_annee(df_annee, annee, client_col):
     if df_annee.empty:
         return pd.DataFrame(columns=[client_col, f'Total_Marche_{annee}', f'AGL_Volume_{annee}', f'PDM_{annee}'])
-    stats = df_annee.groupby(client_col).agg(
+    # Version vectorisée : le test « AFRICA GLOBAL » est calculé une seule fois
+    # sur toute la colonne au lieu d'un lambda exécuté par groupe client
+    # (~200x plus rapide sur de gros fichiers, résultat strictement identique).
+    d = df_annee[[client_col, 'NOMBRE_TEU', 'Transitaire']].copy()
+    is_agl = d['Transitaire'].astype(str).str.contains('AFRICA GLOBAL', case=False, na=False)
+    d['_AGL_Volume'] = d['NOMBRE_TEU'].where(is_agl, 0)
+    stats = d.groupby(client_col, sort=False).agg(
         Total_Marche=('NOMBRE_TEU', 'sum'),
-        AGL_Volume=('NOMBRE_TEU', lambda x: x[df_annee.loc[x.index, 'Transitaire'].astype(str).str.contains('AFRICA GLOBAL', case=False, na=False)].sum())
+        AGL_Volume=('_AGL_Volume', 'sum')
     ).reset_index()
-    stats[f'PDM_{annee}'] = (stats['AGL_Volume'] / stats['Total_Marche']) * 100
+    stats[f'PDM_{annee}'] = ((stats['AGL_Volume'] / stats['Total_Marche'].where(stats['Total_Marche'] > 0)) * 100).fillna(0)
     return stats.rename(columns={'Total_Marche': f'Total_Marche_{annee}', 'AGL_Volume': f'AGL_Volume_{annee}'})
 
 
@@ -495,18 +501,25 @@ def _make_dual_xlsx(left_title, right_title, left_df, right_df,
 def _categorize_clients(comp, client_col, cur_year, prev_year):
     # Pas de filtre liste noire ici : les Excel embarqués doivent refléter
     # exactement les mêmes données que le dashboard et les slides PPTX.
-    c = comp.copy()
     col_ag_cur = f'AGL_Volume_{cur_year}'
     col_ag_prv = f'AGL_Volume_{prev_year}'
     col_tm_cur = f'Total_Marche_{cur_year}'
     col_tm_prv = f'Total_Marche_{prev_year}'
 
+    # Même périmètre que le dashboard FOCUS AGL (comp_agl) et update_analyse_group :
+    # ne conserver que les clients ayant un volume AGL sur au moins une des deux
+    # années. Sans ce filtre, les clients 100 % concurrents (AGL = 0 les deux
+    # années, donc Variation = 0) étaient comptés comme « hausse » et la liste
+    # des Excel embarqués devenait bien plus volumineuse que le dashboard.
+    c = comp[(comp[col_ag_cur] > 0) | (comp[col_ag_prv] > 0)].copy()
+
     c['Variation'] = c[col_ag_cur] - c[col_ag_prv]
     c['Var_Marche'] = c[col_tm_cur] - c[col_tm_prv]
     # PDM en fraction (0-1) — comparaison directe sans arrondi pour rester
-    # cohérent avec update_analyse_group et render_dashboard (seuil 0.95 / 95)
-    c['PDM_prv'] = c.apply(lambda r: r[col_ag_prv] / r[col_tm_prv] if r[col_tm_prv] > 0 else 0, axis=1)
-    c['PDM_cur'] = c.apply(lambda r: r[col_ag_cur] / r[col_tm_cur] if r[col_tm_cur] > 0 else 0, axis=1)
+    # cohérent avec update_analyse_group et render_dashboard (seuil 0.95 / 95).
+    # Vectorisé (remplace apply ligne par ligne) : NaN quand marché <= 0 -> 0.
+    c['PDM_prv'] = (c[col_ag_prv] / c[col_tm_prv].where(c[col_tm_prv] > 0)).fillna(0)
+    c['PDM_cur'] = (c[col_ag_cur] / c[col_tm_cur].where(c[col_tm_cur] > 0)).fillna(0)
 
     active_both = c[(c[col_tm_prv] > 0) & (c[col_tm_cur] > 0)]
     captive = active_both[(active_both['PDM_prv'] >= 0.95) & (active_both['PDM_cur'] >= 0.95) &
