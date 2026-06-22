@@ -2009,7 +2009,10 @@ if st.session_state.validated:
                 m_inactifs   = (comp_df[col_ag_prv] > 0) & (comp_df[col_ag_cur] == 0)
 
             m_present = ~(m_actifs_new | m_inactifs) & ((comp_df[col_ag_cur] > 0) | (comp_df[col_ag_prv] > 0))
-            m_seuil   = (comp_df[col_pd_cur] >= seuil_pdm) & (comp_df[col_pd_prv] >= seuil_pdm)
+            # Seuil testé sur la PDM ARRONDIE affichée (ex. 94,98 % -> 95 %),
+            # cohérent avec _categorize_clients / le PPTX (Insight_generation.py).
+            m_seuil   = (series_round_half_up(comp_df[col_pd_cur]) >= seuil_pdm) & \
+                        (series_round_half_up(comp_df[col_pd_prv]) >= seuil_pdm)
             m_crois   = comp_df['Variation_Volume'] >= 0
             m_baisse  = comp_df['Variation_Volume'] < 0
 
@@ -2067,8 +2070,9 @@ if st.session_state.validated:
                 st.markdown(f'<div class="agl-section-title agl-section-title-warn" style="margin-top:16px">{ICON_DOWN} AUTRES CLIENTS EN BAISSE</div>', unsafe_allow_html=True)
                 editable_dataframe(format_view_table(df_aut_baisse, label_per, client_col, rd_cur_year, rd_prv_year), f"{prefix_key}_autb")
         else:
-            df_100 = comp_df[comp_df[col_pd_cur] >= seuil_pdm].sort_values(col_ag_cur, ascending=False)
-            df_aut = comp_df[comp_df[col_pd_cur] < seuil_pdm].sort_values(col_ag_cur, ascending=False)
+            _pdm_cur_pct = series_round_half_up(comp_df[col_pd_cur])
+            df_100 = comp_df[_pdm_cur_pct >= seuil_pdm].sort_values(col_ag_cur, ascending=False)
+            df_aut = comp_df[_pdm_cur_pct < seuil_pdm].sort_values(col_ag_cur, ascending=False)
             col_g, col_d = st.columns(2, gap="large")
             with col_g:
                 st.markdown(f'<div class="agl-section-title">{ICON_UP} CLIENTS PDM ≥ {seuil_pdm}%</div>', unsafe_allow_html=True)

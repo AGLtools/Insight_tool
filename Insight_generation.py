@@ -567,14 +567,18 @@ def _categorize_clients(comp, client_col, cur_year, prev_year):
 
     c['Variation'] = c[col_ag_cur] - c[col_ag_prv]
     c['Var_Marche'] = c[col_tm_cur] - c[col_tm_prv]
-    # PDM en fraction (0-1) — comparaison directe sans arrondi pour rester
-    # cohérent avec update_analyse_group et render_dashboard (seuil 0.95 / 95).
+    # PDM en fraction (0-1). Le test captif se fait sur la valeur ARRONDIE
+    # affichée (round_half_up -> %), pas sur la fraction brute : un client à
+    # 94,98 % affiché « 95 % » doit être classé captif (>= 95 %), cohérent avec
+    # update_analyse_group, update_comments_text et render_dashboard.
     # Vectorisé (remplace apply ligne par ligne) : NaN quand marché <= 0 -> 0.
     c['PDM_prv'] = (c[col_ag_prv] / c[col_tm_prv].where(c[col_tm_prv] > 0)).fillna(0)
     c['PDM_cur'] = (c[col_ag_cur] / c[col_tm_cur].where(c[col_tm_cur] > 0)).fillna(0)
+    c['_PDM_prv_pct'] = series_round_half_up(c['PDM_prv'] * 100)
+    c['_PDM_cur_pct'] = series_round_half_up(c['PDM_cur'] * 100)
 
     active_both = c[(c[col_tm_prv] > 0) & (c[col_tm_cur] > 0)]
-    captive = active_both[(active_both['PDM_prv'] >= 0.95) & (active_both['PDM_cur'] >= 0.95) &
+    captive = active_both[(active_both['_PDM_prv_pct'] >= 95) & (active_both['_PDM_cur_pct'] >= 95) &
                           (active_both[col_ag_prv] > 0) & (active_both[col_ag_cur] > 0)]
     non_captive = active_both[~active_both.index.isin(captive.index)]
 
@@ -1569,15 +1573,18 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         comp_a['PDM_r_prv'] = comp_a.apply(
             lambda r: r[col_ag_prv] / r[col_tm_prv] if r[col_tm_prv] > 0 else 0, axis=1)
         active_both = comp_a[(comp_a[col_tm_prv] > 0) & (comp_a[col_tm_cur] > 0)]
-        captive = active_both[(active_both['PDM_r_prv'] >= 0.95) & (active_both['PDM_r_cur'] >= 0.95) &
+        # Test captif sur la PDM ARRONDIE (>= 95 %), cohérent avec _categorize_clients.
+        captive = active_both[(series_round_half_up(active_both['PDM_r_prv'] * 100) >= 95) &
+                              (series_round_half_up(active_both['PDM_r_cur'] * 100) >= 95) &
                               (active_both[col_ag_prv] > 0) & (active_both[col_ag_cur] > 0)]
         non_captive = active_both[~active_both.index.isin(captive.index)]
         others_down = non_captive[non_captive['Variation'] < 0]
         total_loss = int(others_down['Variation'].sum())
 
-        # Top 10 : clients en baisse chez AGL ET en hausse sur le marché
-        declining = comp_c[(comp_c['Variation'] < 0) & (comp_c['Var_Marche'] > 0)].copy()
-        top10 = declining.nsmallest(10, 'Variation')
+        # Top 10 : les 10 plus fortes baisses de la catégorie « Autres Clients
+        # en Hausse et en Baisse » (others_down) — même périmètre que total_loss.
+        # On affiche le sens du marché (Hausse/Baisse) par client.
+        top10 = others_down.nsmallest(10, 'Variation')
 
         # Trouver la zone COMMENTAIRES
         best_sh = None; best_len = 0
@@ -1651,7 +1658,9 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         comp_a['PDM_r_cur'] = comp_a.apply(lambda r: r[col_ag_cur] / r[col_tm_cur] if r[col_tm_cur] > 0 else 0, axis=1)
         comp_a['PDM_r_prv'] = comp_a.apply(lambda r: r[col_ag_prv] / r[col_tm_prv] if r[col_tm_prv] > 0 else 0, axis=1)
         active_both = comp_a[(comp_a[col_tm_prv] > 0) & (comp_a[col_tm_cur] > 0)]
-        captive = active_both[(active_both['PDM_r_prv'] >= 0.95) & (active_both['PDM_r_cur'] >= 0.95) &
+        # Test captif sur la PDM ARRONDIE (>= 95 %), cohérent avec _categorize_clients.
+        captive = active_both[(series_round_half_up(active_both['PDM_r_prv'] * 100) >= 95) &
+                              (series_round_half_up(active_both['PDM_r_cur'] * 100) >= 95) &
                               (active_both[col_ag_prv] > 0) & (active_both[col_ag_cur] > 0)]
         non_captive = active_both[~active_both.index.isin(captive.index)]
         actifs = comp_a[(comp_a[col_tm_prv] == 0) & (comp_a[col_ag_cur] > 0)]
