@@ -1583,10 +1583,14 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         others_down = non_captive[non_captive['Variation'] < 0]
         total_loss = int(others_down['Variation'].sum())
 
-        # Top 10 : les 10 plus fortes baisses de la catégorie « Autres Clients
-        # en Hausse et en Baisse » (others_down) — même périmètre que total_loss.
-        # On affiche le sens du marché (Hausse/Baisse) par client.
-        top10 = others_down.nsmallest(10, 'Variation')
+        # Top 10 « Principaux Acteurs de cette Baisse » : clients en baisse chez
+        # AGL alors que LEUR MARCHÉ progresse (Var_Marche > 0) — la part perdue
+        # au profit des concurrents. Filtre VOLONTAIREMENT différent du total
+        # d'en-tête (qui couvre toutes les baisses « autres ») : c'est le
+        # comportement historique attendu. Pas de filtre liste noire (réservé à
+        # la concurrence) — les clients hors périmètre (mines, ministères…) ont
+        # un marché en baisse et sortent naturellement via Var_Marche > 0.
+        top10 = comp_c[(comp_c['Variation'] < 0) & (comp_c['Var_Marche'] > 0)].nsmallest(10, 'Variation')
 
         # Trouver la zone COMMENTAIRES
         best_sh = None; best_len = 0
