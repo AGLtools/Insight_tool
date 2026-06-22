@@ -39,6 +39,10 @@ def _build():
         # --- autre client en baisse (non captif) : doit alimenter le top10 ---
         _row("AUTRE BAISSE 1", 500, 700, 300, 700),                  # 71%/43%, var -200
         _row("AUTRE BAISSE 2", 400, 700, 250, 700),                  # 57%/36%, var -150
+        # --- client liste noire (excluded_clients.json) en baisse : doit
+        #     compter dans le total comme dans update_analyse_group (pas de
+        #     filtre liste noire), sinon l'en-tête commentaire diverge du bloc. ---
+        _row("ENI CI", 200, 400, 100, 400),                          # 50%/25%, var -100, blacklisté
         # --- autre client en hausse (non captif) ---
         _row("AUTRE HAUSSE", 100, 500, 300, 500),                    # 20%/60%, var +200
         # --- frontière basse : 94,4 % -> arrondi 94 % -> NON captif ---
@@ -102,10 +106,19 @@ def run():
         "Top10 baisse inclut les vrais 'autres en baisse'")
     chk(top10_names.issubset(_names(others_down)),
         "Tous les clients du Top10 appartiennent au groupe 'autres en baisse'")
-    # cohérence total affiché vs périmètre du top10
+    # cohérence total affiché vs périmètre du top10 (inclut le client blacklisté)
     total_loss = int(others_down["Variation"].sum())
-    chk(total_loss == -350,
-        f"Total baisse 'autres' = somme others_down (attendu -350, obtenu {total_loss})")
+    chk(total_loss == -450,
+        f"Total baisse 'autres' = somme others_down (attendu -450, obtenu {total_loss})")
+
+    # ---- parité commentaire vs bloc d'analyse : pas de filtre liste noire ----
+    # ENI CI est dans excluded_clients.json ; il DOIT compter dans la baisse,
+    # comme dans update_analyse_group (sinon l'en-tête commentaire diverge).
+    from Insight_generation import _is_excluded_client
+    chk(_is_excluded_client("ENI CI"),
+        "ENI CI est bien dans la liste noire (sanity)")
+    chk("ENI CI" in baisse,
+        "Client blacklisté en baisse compté dans 'autres en baisse' (parité commentaire/analyse)")
 
     # ---- helpers d'arrondi (half-up) ----
     chk(round_half_up(94.5) == 95 and round_half_up(2.5) == 3,

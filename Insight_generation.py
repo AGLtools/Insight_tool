@@ -1562,7 +1562,9 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         comp_c['Variation'] = comp_c[col_ag_cur] - comp_c[col_ag_prv]
         comp_c['Var_Marche'] = comp_c[col_tm_cur] - comp_c[col_tm_prv]
         unit = metric_unit
-        comp_c = comp_c[~comp_c[client_col].apply(_is_excluded_client)]
+        # NB : PAS de filtre liste noire (_is_excluded_client) ici. update_analyse_group
+        # (qui produit « XX Clients en baisse  - YYY Teus ») n'en applique pas ; en
+        # filtrer ici donnait un total d'en-tête différent du bloc d'analyse.
 
         # Valeur d'en-tête : somme des baisses AGL de la catégorie
         # « Autres Clients en Hausse et en Baisse » (clients non captifs en baisse),
