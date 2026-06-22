@@ -19,6 +19,40 @@ if os.path.isdir(_portable_site) and _portable_site not in sys.path:
     sys.path.insert(0, _portable_site)
 
 import pandas as pd
+import numpy as np
+import decimal
+
+
+# ─────────────────────────────────────────────
+#  ARRONDI ARITHMÉTIQUE (0,5 -> 1)
+# ─────────────────────────────────────────────
+# Python `round()` et pandas `.round()` utilisent l'arrondi « bancaire »
+# (round-half-to-even) : round(0.5)=0, round(2.5)=2. On veut l'arrondi
+# arithmétique usuel : 0,5 s'arrondit à 1 (round-half-away-from-zero).
+def round_half_up(value, ndigits=0):
+    """Arrondit ``value`` avec la règle 0,5 -> 1 (au lieu de l'arrondi bancaire).
+
+    Retourne un ``int`` si ``ndigits == 0``, sinon un ``float``.
+    Les valeurs non numériques / NaN / infinies renvoient 0.
+    """
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return 0 if ndigits == 0 else 0.0
+    if f != f or f in (float('inf'), float('-inf')):
+        return 0 if ndigits == 0 else 0.0
+    q = decimal.Decimal(1).scaleb(-ndigits)
+    r = decimal.Decimal(str(f)).quantize(q, rounding=decimal.ROUND_HALF_UP)
+    return int(r) if ndigits == 0 else float(r)
+
+
+def series_round_half_up(s, ndigits=0):
+    """Version vectorisée (pandas Series) de :func:`round_half_up`."""
+    factor = 10 ** ndigits
+    arr = pd.to_numeric(s, errors='coerce')
+    rounded = np.sign(arr) * np.floor(np.abs(arr) * factor + 0.5) / factor
+    return rounded
+
 
 # ─────────────────────────────────────────────
 #  CONSTANTES (dupliquées depuis app.py)
@@ -223,6 +257,24 @@ def load_excluded_clients():
             return []
     return []
 
+def save_excluded_clients(clients_list):
+    try:
+        with open(EXCLUDED_CLIENTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'excluded_clients': clients_list}, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception:
+        return False
+
+def add_excluded_clients(new_clients):
+    current = load_excluded_clients()
+    updated = sorted(set(current) | set(new_clients))
+    save_excluded_clients(updated)
+
+def remove_excluded_clients(clients_to_remove):
+    current = load_excluded_clients()
+    updated = [c for c in current if c not in set(clients_to_remove)]
+    save_excluded_clients(updated)
+
 def _is_excluded_client(name):
     up = str(name).upper().strip()
     excluded_upper = {c.upper() for c in load_excluded_clients()}
@@ -307,12 +359,12 @@ def compute_top20_transitaires_overview(df, current_year, previous_year, metric_
         # qui multiplie par 100 lorsqu'il applique « Percentage ».
         return {
             'Transitaire': name,
-            f'Volume {previous_year}': int(round(vol_prv)),
+            f'Volume {previous_year}': round_half_up(vol_prv),
             f'PDM {previous_year}': (vol_prv / total_prv) if total_prv > 0 else 0.0,
-            f'Volume {current_year}': int(round(vol_cur)),
+            f'Volume {current_year}': round_half_up(vol_cur),
             f'PDM {current_year}': (vol_cur / total_cur) if total_cur > 0 else 0.0,
-            "Variation d'unite": int(round(var_u)),
-            'Variation %': round(var_p, 4),
+            "Variation d'unite": round_half_up(var_u),
+            'Variation %': round_half_up(var_p, 4),
         }
 
     rows = []
@@ -1163,8 +1215,8 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             if col_ag_cur in comp.columns: total_agl_cur += int(comp[col_ag_cur].sum())
             if not is_single and col_tm_prv in comp.columns: total_marche_prv += int(comp[col_tm_prv].sum())
             if not is_single and col_ag_prv in comp.columns: total_agl_prv += int(comp[col_ag_prv].sum())
-        pdm_cur = f"{round(total_agl_cur / total_marche_cur * 100)}%" if total_marche_cur > 0 else "0%"
-        pdm_prv = f"{round(total_agl_prv / total_marche_prv * 100)}%" if total_marche_prv > 0 else "0%"
+        pdm_cur = f"{round_half_up(total_agl_cur / total_marche_cur * 100)}%" if total_marche_cur > 0 else "0%"
+        pdm_prv = f"{round_half_up(total_agl_prv / total_marche_prv * 100)}%" if total_marche_prv > 0 else "0%"
         var_marche = total_marche_cur - total_marche_prv
         var_agl = total_agl_cur - total_agl_prv
         def _fmt(v): return f"{int(v):,}".replace(",", " ")
@@ -1316,10 +1368,10 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             _set_cell(tbl.cell(0, ci + 1), hdr, bold=True, color=COLOR_HEADER_FG,
                       bg=(0x1C, 0x35, 0x5E), align=PP_ALIGN.CENTER, size=Pt(9))
 
-        def _fmt_int(v): return f"{int(round(v)):,}".replace(",", " ")
+        def _fmt_int(v): return f"{round_half_up(v):,}".replace(",", " ")
         def _fmt_pct(num, den):
             if den <= 0: return "0%"
-            return f"{round(num / den * 100)}%"
+            return f"{round_half_up(num / den * 100)}%"
         def _fmt_signed(v):
             sign = "" if v >= 0 else "-"
             return f"{sign}{_fmt_int(abs(v))}"
@@ -1339,7 +1391,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             _set_cell(tbl.cell(r_idx, 5), _fmt_pct(cur, total_cur), align=PP_ALIGN.CENTER, color=COLOR_BLUE_TXT)
             var_color = COLOR_BLUE_TXT if var_u >= 0 else COLOR_RED_TXT
             _set_cell(tbl.cell(r_idx, 6), _fmt_signed(var_u), align=PP_ALIGN.CENTER, color=var_color, bold=True)
-            _set_cell(tbl.cell(r_idx, 7), f"{round(var_pct)}%", align=PP_ALIGN.CENTER, color=var_color, bold=True)
+            _set_cell(tbl.cell(r_idx, 7), f"{round_half_up(var_pct)}%", align=PP_ALIGN.CENTER, color=var_color, bold=True)
 
         # ── Ligne TOP 20 TRANSITAIRES ──
         r_idx = 1 + len(top20)
@@ -1353,7 +1405,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         var_t_pct = (var_t / top20_prv * 100) if top20_prv > 0 else 0
         col_t = COLOR_BLUE_TXT if var_t >= 0 else COLOR_RED_TXT
         _set_cell(tbl.cell(r_idx, 6), _fmt_signed(var_t), bold=True, bg=(0xC6, 0xE0, 0xB4), align=PP_ALIGN.CENTER, color=col_t)
-        _set_cell(tbl.cell(r_idx, 7), f"{round(var_t_pct)}%", bold=True, bg=(0xC6, 0xE0, 0xB4), align=PP_ALIGN.CENTER, color=col_t)
+        _set_cell(tbl.cell(r_idx, 7), f"{round_half_up(var_t_pct)}%", bold=True, bg=(0xC6, 0xE0, 0xB4), align=PP_ALIGN.CENTER, color=col_t)
 
         # ── Ligne AUTRES TRANSITAIRES ──
         r_idx += 1
@@ -1367,7 +1419,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         var_a_pct = (var_a / autres_prv * 100) if autres_prv > 0 else 0
         col_a = COLOR_BLUE_TXT if var_a >= 0 else COLOR_RED_TXT
         _set_cell(tbl.cell(r_idx, 6), _fmt_signed(var_a), bold=True, bg=(0xF8, 0xCB, 0xAD), align=PP_ALIGN.CENTER, color=col_a)
-        _set_cell(tbl.cell(r_idx, 7), f"{round(var_a_pct)}%", bold=True, bg=(0xF8, 0xCB, 0xAD), align=PP_ALIGN.CENTER, color=col_a)
+        _set_cell(tbl.cell(r_idx, 7), f"{round_half_up(var_a_pct)}%", bold=True, bg=(0xF8, 0xCB, 0xAD), align=PP_ALIGN.CENTER, color=col_a)
 
         # ── Ligne TOTAL MARCHE ──
         r_idx += 1
@@ -1381,7 +1433,7 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         var_tm_pct = (var_tm / total_prv * 100) if total_prv > 0 else 0
         col_tm = COLOR_BLUE_TXT if var_tm >= 0 else COLOR_RED_TXT
         _set_cell(tbl.cell(r_idx, 6), _fmt_signed(var_tm), bold=True, bg=(0xA9, 0xD0, 0x8E), align=PP_ALIGN.CENTER, color=col_tm)
-        _set_cell(tbl.cell(r_idx, 7), f"{round(var_tm_pct)}%", bold=True, bg=(0xA9, 0xD0, 0x8E), align=PP_ALIGN.CENTER, color=col_tm)
+        _set_cell(tbl.cell(r_idx, 7), f"{round_half_up(var_tm_pct)}%", bold=True, bg=(0xA9, 0xD0, 0x8E), align=PP_ALIGN.CENTER, color=col_tm)
 
     def fill_synthese_table(slide, comp, metric_unit, label_per, is_single, current_year, previous_year):
         tbl = find_table(slide)
@@ -1392,10 +1444,10 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         col_ag_prv = f'AGL_Volume_{previous_year}'
         tm_cur = int(comp[col_tm_cur].sum()) if col_tm_cur in comp.columns else 0
         ta_cur = int(comp[col_ag_cur].sum()) if col_ag_cur in comp.columns else 0
-        pdm_cur = f"{round(ta_cur/tm_cur*100)}%" if tm_cur > 0 else "0%"
+        pdm_cur = f"{round_half_up(ta_cur/tm_cur*100)}%" if tm_cur > 0 else "0%"
         tm_prv = int(comp[col_tm_prv].sum()) if (not is_single and col_tm_prv in comp.columns) else 0
         ta_prv = int(comp[col_ag_prv].sum()) if (not is_single and col_ag_prv in comp.columns) else 0
-        pdm_prv = f"{round(ta_prv/tm_prv*100)}%" if tm_prv > 0 else "0%"
+        pdm_prv = f"{round_half_up(ta_prv/tm_prv*100)}%" if tm_prv > 0 else "0%"
         var_m = tm_cur - tm_prv
         var_a = ta_cur - ta_prv
         vals = [f"{tm_cur:,}".replace(",", " "), f"{ta_cur:,}".replace(",", " "), pdm_cur,
@@ -1470,12 +1522,12 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             if i >= 20: break
             r_idx = i + 1
             tm = int(row[col_tm_cur]); ta = int(row[col_ag_cur])
-            pdm = f"{round(ta/tm*100)}%" if tm > 0 else "0%"
+            pdm = f"{round_half_up(ta/tm*100)}%" if tm > 0 else "0%"
             vc = int(row['VOL_CONC'])
             conc_name = str(row.get('1ER_CONC', ''))
             if conc_name in ('0', '0.0', ''): conc_name = 'NON APURE'
             tc_val = int(row.get('TEUS_CONC', 0))
-            pdm_c = f"{round(tc_val/tm*100)}%" if tm > 0 and tc_val > 0 else "0%"
+            pdm_c = f"{round_half_up(tc_val/tm*100)}%" if tm > 0 and tc_val > 0 else "0%"
             def _fmt(v): return f"{int(v):,}".replace(",", " ")
             vals = [str(i+1), str(row[client_col]), _fmt(tm), _fmt(ta), pdm, _fmt(vc),
                     conc_name, _fmt(tc_val), pdm_c]
@@ -1507,8 +1559,24 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         comp_c['Var_Marche'] = comp_c[col_tm_cur] - comp_c[col_tm_prv]
         unit = metric_unit
         comp_c = comp_c[~comp_c[client_col].apply(_is_excluded_client)]
-        declining = comp_c[comp_c['Variation'] < 0].copy()
-        total_loss = int(declining['Variation'].sum())
+
+        # Valeur d'en-tête : somme des baisses AGL de la catégorie
+        # « Autres Clients en Hausse et en Baisse » (clients non captifs en baisse),
+        # calcul identique à update_analyse_group (groupe others_down).
+        comp_a = comp_c[(comp_c[col_ag_cur] > 0) | (comp_c[col_ag_prv] > 0)].copy()
+        comp_a['PDM_r_cur'] = comp_a.apply(
+            lambda r: r[col_ag_cur] / r[col_tm_cur] if r[col_tm_cur] > 0 else 0, axis=1)
+        comp_a['PDM_r_prv'] = comp_a.apply(
+            lambda r: r[col_ag_prv] / r[col_tm_prv] if r[col_tm_prv] > 0 else 0, axis=1)
+        active_both = comp_a[(comp_a[col_tm_prv] > 0) & (comp_a[col_tm_cur] > 0)]
+        captive = active_both[(active_both['PDM_r_prv'] >= 0.95) & (active_both['PDM_r_cur'] >= 0.95) &
+                              (active_both[col_ag_prv] > 0) & (active_both[col_ag_cur] > 0)]
+        non_captive = active_both[~active_both.index.isin(captive.index)]
+        others_down = non_captive[non_captive['Variation'] < 0]
+        total_loss = int(others_down['Variation'].sum())
+
+        # Top 10 : clients en baisse chez AGL ET en hausse sur le marché
+        declining = comp_c[(comp_c['Variation'] < 0) & (comp_c['Var_Marche'] > 0)].copy()
         top10 = declining.nsmallest(10, 'Variation')
 
         # Trouver la zone COMMENTAIRES
@@ -2246,6 +2314,72 @@ def render_pptx_page(st):
 
     # ── Configuration « Marché Hors Transitaires Intégrés » (slide 2) ──────
     _render_marche_hors_integres_config(st)
+
+    # ── Liste noire (clients exclus de la concurrence / des commentaires) ───
+    st.markdown('<div class="step-header">LISTE NOIRE — CLIENTS EXCLUS DES ANALYSES</div>',
+                unsafe_allow_html=True)
+    st.caption("Les clients de la liste noire sont exclus du tableau de concurrence "
+               "et des commentaires du rapport PPTX (même liste que le Dashboard).")
+
+    # Clients disponibles : extraits des fichiers scannés (Destinataire = import,
+    # Chargeur = export).
+    all_clients_pptx = set()
+    for _key, (_fname, _scan) in scans.items():
+        if 'error' in _scan:
+            continue
+        _sdf = _scan.get('df')
+        if _sdf is None:
+            continue
+        for _ccol in ('Destinataire', 'Chargeur'):
+            if _ccol in _sdf.columns:
+                _vals = _sdf[_ccol].dropna().astype(str).str.strip()
+                all_clients_pptx.update(
+                    v for v in _vals.unique() if v and v.upper() not in ('0', 'NAN', 'NONE'))
+    all_clients_pptx = sorted(all_clients_pptx)
+
+    current_blacklist = load_excluded_clients()
+
+    bl_c1, bl_c2 = st.columns(2)
+    with bl_c1:
+        with st.form("pptx_blacklist_add_form", clear_on_submit=True):
+            to_add = st.multiselect(
+                "Clients à ajouter à la liste noire",
+                options=[c for c in all_clients_pptx if c not in current_blacklist],
+                default=[], key="pptx_blacklist_add_select",
+            )
+            if st.form_submit_button("Ajouter à la liste noire", type="primary"):
+                if to_add:
+                    add_excluded_clients(to_add)
+                    st.success(f"{len(to_add)} client(s) ajouté(s) à la liste noire.")
+                    st.rerun()
+                else:
+                    st.warning("Aucun client sélectionné.")
+    with bl_c2:
+        with st.form("pptx_blacklist_remove_form", clear_on_submit=True):
+            to_remove = st.multiselect(
+                "Clients à retirer de la liste noire",
+                options=current_blacklist, default=[],
+                key="pptx_blacklist_remove_select",
+            )
+            if st.form_submit_button("Retirer de la liste noire"):
+                if to_remove:
+                    remove_excluded_clients(to_remove)
+                    st.success(f"{len(to_remove)} client(s) retiré(s) de la liste noire.")
+                    st.rerun()
+                else:
+                    st.warning("Aucun client sélectionné.")
+
+    if current_blacklist:
+        preview = ', '.join(current_blacklist[:5])
+        if len(current_blacklist) > 5:
+            preview += f" … (+{len(current_blacklist) - 5})"
+        st.info(f"Liste noire actuelle : {len(current_blacklist)} client(s) — {preview}")
+        if st.button("Vider la liste noire", type="secondary", key="pptx_blacklist_clear"):
+            save_excluded_clients([])
+            st.success("Liste noire vidée.")
+            st.rerun()
+    else:
+        st.info("Aucun client dans la liste noire pour l'instant.")
 
     # ── ÉTAPE 4 : Génération ────────────────────────────────────────────────
     st.markdown('<div class="step-header">ÉTAPE 4 — GÉNÉRATION DU RAPPORT</div>',

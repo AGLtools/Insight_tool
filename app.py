@@ -14,7 +14,7 @@ import json
 import io
 
 # Module externe pour la génération du rapport PPTX (page standalone)
-from Insight_generation import render_pptx_page
+from Insight_generation import render_pptx_page, round_half_up, series_round_half_up
 
 COLUMN_NAMES_CACHE_FILE = os.path.join(os.path.dirname(__file__), '.column_names_cache.json')
 EXCLUDED_CLIENTS_FILE = os.path.join(os.path.dirname(__file__), 'excluded_clients.json')
@@ -855,8 +855,8 @@ def _categorize_clients(comp, client_col, cur_year, prev_year):
     c['PDM_prv'] = c.apply(lambda r: r[col_ag_prv] / r[col_tm_prv] if r[col_tm_prv] > 0 else 0, axis=1)
     c['PDM_cur'] = c.apply(lambda r: r[col_ag_cur] / r[col_tm_cur] if r[col_tm_cur] > 0 else 0, axis=1)
     # Test PDM sur la valeur ARRONDIE affichée (>= 95%) — aligné sur l'original
-    c['_PDM_prv_pct'] = (c['PDM_prv'] * 100).round().astype(int)
-    c['_PDM_cur_pct'] = (c['PDM_cur'] * 100).round().astype(int)
+    c['_PDM_prv_pct'] = series_round_half_up(c['PDM_prv'] * 100).astype(int)
+    c['_PDM_cur_pct'] = series_round_half_up(c['PDM_cur'] * 100).astype(int)
 
     active_both = c[(c[col_tm_prv] > 0) & (c[col_tm_cur] > 0)]
     captive = active_both[(active_both['_PDM_prv_pct'] >= 95) & (active_both['_PDM_cur_pct'] >= 95) &
@@ -1258,8 +1258,8 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             if not is_single and col_ag_prv in comp.columns:
                 total_agl_prv += int(comp[col_ag_prv].sum())
 
-        pdm_cur = f"{round(total_agl_cur / total_marche_cur * 100)}%" if total_marche_cur > 0 else "0%"
-        pdm_prv = f"{round(total_agl_prv / total_marche_prv * 100)}%" if total_marche_prv > 0 else "0%"
+        pdm_cur = f"{round_half_up(total_agl_cur / total_marche_cur * 100)}%" if total_marche_cur > 0 else "0%"
+        pdm_prv = f"{round_half_up(total_agl_prv / total_marche_prv * 100)}%" if total_marche_prv > 0 else "0%"
         var_marche = total_marche_cur - total_marche_prv
         var_agl = total_agl_cur - total_agl_prv
 
@@ -1301,10 +1301,10 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
         col_ag_prv = f'AGL_Volume_{previous_year}'
         tm_cur = int(comp[col_tm_cur].sum()) if col_tm_cur in comp.columns else 0
         ta_cur = int(comp[col_ag_cur].sum()) if col_ag_cur in comp.columns else 0
-        pdm_cur = f"{round(ta_cur/tm_cur*100)}%" if tm_cur > 0 else "0%"
+        pdm_cur = f"{round_half_up(ta_cur/tm_cur*100)}%" if tm_cur > 0 else "0%"
         tm_prv = int(comp[col_tm_prv].sum()) if (not is_single and col_tm_prv in comp.columns) else 0
         ta_prv = int(comp[col_ag_prv].sum()) if (not is_single and col_ag_prv in comp.columns) else 0
-        pdm_prv = f"{round(ta_prv/tm_prv*100)}%" if tm_prv > 0 else "0%"
+        pdm_prv = f"{round_half_up(ta_prv/tm_prv*100)}%" if tm_prv > 0 else "0%"
         var_m = tm_cur - tm_prv
         var_a = ta_cur - ta_prv
         vals = [f"{tm_cur:,}".replace(",", " "), f"{ta_cur:,}".replace(",", " "), pdm_cur,
@@ -1352,12 +1352,12 @@ def generate_pptx_report(sections_data, label_periode, is_single_month):
             if i >= 20: break
             r_idx = i + 1
             tm = int(row[col_tm_cur]); ta = int(row[col_ag_cur])
-            pdm = f"{round(ta/tm*100)}%" if tm > 0 else "0%"
+            pdm = f"{round_half_up(ta/tm*100)}%" if tm > 0 else "0%"
             vc = int(row['VOL_CONC'])
             conc_name = str(row.get('1ER_CONC', ''))
             if conc_name in ('0', '0.0', ''): conc_name = 'NON APURE'
             tc_val = int(row.get('TEUS_CONC', 0))
-            pdm_c = f"{round(tc_val/tm*100)}%" if tm > 0 and tc_val > 0 else "0%"
+            pdm_c = f"{round_half_up(tc_val/tm*100)}%" if tm > 0 and tc_val > 0 else "0%"
             vals = [str(i+1), str(row[client_col]), str(tm), str(ta), pdm, str(vc), conc_name, str(tc_val), pdm_c]
             for c in range(min(len(vals), len(tbl.columns))):
                 if r_idx < len(tbl.rows):
@@ -1762,7 +1762,7 @@ if st.session_state.validated:
             nb_clients = df_globe[client_col].nunique() if client_col in df_globe.columns else 0
             nb_transitaires = df_globe['Transitaire'].nunique()
             agl_vol = df_globe[df_globe['Transitaire'].astype(str).str.contains('AFRICA GLOBAL', case=False, na=False)]['NOMBRE_TEU'].sum()
-            pdm_global = round(agl_vol / total_vol * 100) if total_vol > 0 else 0
+            pdm_global = round_half_up(agl_vol / total_vol * 100) if total_vol > 0 else 0
 
             kpi_html = f"""
             <style>
@@ -1774,8 +1774,8 @@ if st.session_state.validated:
             .globe-kpi.pdm .globe-kpi-val {{background:linear-gradient(90deg,#2196F3,#42a5f5); -webkit-background-clip:text; -webkit-text-fill-color:transparent;}}
             </style>
             <div class="globe-kpi-row">
-                <div class="globe-kpi"><div class="globe-kpi-val">{total_vol:,.0f}</div><div class="globe-kpi-label">Volume Total {unit_upper_g}</div></div>
-                <div class="globe-kpi agl"><div class="globe-kpi-val">{agl_vol:,.0f}</div><div class="globe-kpi-label">Volume AGL</div></div>
+                <div class="globe-kpi"><div class="globe-kpi-val">{round_half_up(total_vol):,}</div><div class="globe-kpi-label">Volume Total {unit_upper_g}</div></div>
+                <div class="globe-kpi agl"><div class="globe-kpi-val">{round_half_up(agl_vol):,}</div><div class="globe-kpi-label">Volume AGL</div></div>
                 <div class="globe-kpi pdm"><div class="globe-kpi-val">{pdm_global}%</div><div class="globe-kpi-label">PDM Globale</div></div>
                 <div class="globe-kpi"><div class="globe-kpi-val">{nb_countries}</div><div class="globe-kpi-label">Pays</div></div>
                 <div class="globe-kpi"><div class="globe-kpi-val">{nb_clients}</div><div class="globe-kpi-label">Clients</div></div>
@@ -1793,7 +1793,7 @@ if st.session_state.validated:
             agl_by_country = df_globe[df_globe['Transitaire'].astype(str).str.contains('AFRICA GLOBAL', case=False, na=False)].groupby(origin_col)['NOMBRE_TEU'].sum().reset_index()
             agl_by_country.columns = ['Pays', 'AGL_Volume']
             country_agg = pd.merge(country_agg, agl_by_country, on='Pays', how='left').fillna(0)
-            country_agg['PDM'] = (country_agg['AGL_Volume'] / country_agg['Volume'] * 100).round(1)
+            country_agg['PDM'] = series_round_half_up(country_agg['AGL_Volume'] / country_agg['Volume'] * 100, 1)
             country_agg['lat'] = country_agg['Pays'].apply(lambda x: (_get_coords(x) or (0, 0))[0])
             country_agg['lon'] = country_agg['Pays'].apply(lambda x: (_get_coords(x) or (0, 0))[1])
             country_agg = country_agg[(country_agg['lat'] != 0) | (country_agg['lon'] != 0)]
@@ -2114,10 +2114,10 @@ if st.session_state.validated:
         with ts_tab_top100:
             st.markdown(f"**TOP 100 {role_ts} — {label_periode.upper()} {df_current_year}**")
             top100_ts = comparison.copy()
-            top100_ts['_PDM_cur'] = (top100_ts[col_ag_cur_ts] / top100_ts[col_tm_cur_ts].clip(lower=1) * 100).round(1)
+            top100_ts['_PDM_cur'] = series_round_half_up(top100_ts[col_ag_cur_ts] / top100_ts[col_tm_cur_ts].clip(lower=1) * 100, 1)
             if not is_single_month and col_ag_prv_ts in top100_ts.columns:
                 top100_ts['_Var'] = (top100_ts[col_ag_cur_ts] - top100_ts[col_ag_prv_ts]).astype(int)
-                top100_ts['_PDM_prv'] = (top100_ts[col_ag_prv_ts] / top100_ts[col_tm_prv_ts].clip(lower=1) * 100).round(1)
+                top100_ts['_PDM_prv'] = series_round_half_up(top100_ts[col_ag_prv_ts] / top100_ts[col_tm_prv_ts].clip(lower=1) * 100, 1)
             top100_ts = top100_ts.sort_values(col_tm_cur_ts, ascending=False).head(100)
 
             disp_top100_cols = [client_col, col_tm_cur_ts, col_ag_cur_ts, '_PDM_cur']
