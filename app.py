@@ -16,6 +16,15 @@ import io
 # Module externe pour la génération du rapport PPTX (page standalone)
 from Insight_generation import render_pptx_page, round_half_up, series_round_half_up
 
+# Moteur de lecture .xlsx : « calamine » est ~3x plus rapide qu'openpyxl pour
+# des résultats strictement identiques. Repli automatique sur openpyxl si la
+# librairie python-calamine n'est pas installée (aucune régression).
+try:
+    import python_calamine  # noqa: F401
+    _XLSX_ENGINE = 'calamine'
+except Exception:
+    _XLSX_ENGINE = 'openpyxl'
+
 COLUMN_NAMES_CACHE_FILE = os.path.join(os.path.dirname(__file__), '.column_names_cache.json')
 EXCLUDED_CLIENTS_FILE = os.path.join(os.path.dirname(__file__), 'excluded_clients.json')
 
@@ -336,13 +345,19 @@ def clean_numeric_col(series):
     ).fillna(0)
 
 @st.cache_data
-def get_sheet_names(f): return pd.ExcelFile(f).sheet_names
+def get_sheet_names(f): return pd.ExcelFile(f, engine=_XLSX_ENGINE).sheet_names
+
+@st.cache_data(show_spinner=False)
+def read_full_sheet(f, sheet):
+    """Lecture complète d'une feuille, mise en cache : évite de relire tout le
+    fichier (plusieurs secondes) à chaque rerun Streamlit de l'écran de mapping."""
+    return pd.read_excel(f, sheet_name=sheet, engine=_XLSX_ENGINE)
 
 @st.cache_data
 def scan_all_sheets(f, sheet_names):
     best, best_m = sheet_names[0], -1
     for s in sheet_names:
-        df_tmp = pd.read_excel(f, sheet_name=s, nrows=5)
+        df_tmp = pd.read_excel(f, sheet_name=s, nrows=5, engine=_XLSX_ENGINE)
         up = [str(c).upper() for c in df_tmp.columns]
         m_mar = sum(1 for al in EXPECTED_COLS.values() if any(a in up for a in al))
         m_aer = sum(1 for al in EXPECTED_COLS_AERIEN.values() if any(a in up for a in al))
@@ -653,11 +668,24 @@ if uploaded_file and not st.session_state.validated:
 
     if st.session_state.sheet_confirmed:
         with st.spinner("Analyse de la feuille en cours..."):
-            df_raw   = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
+            df_raw   = read_full_sheet(uploaded_file, selected_sheet)
             raw_cols = df_raw.columns.tolist()
             upper_cols = {str(c).upper(): c for c in raw_cols}
 
         data_type = detect_data_type(raw_cols)
+        # GARDE-FOU AÉRIEN : certaines extractions aériennes dupliquent à l'identique
+        # une partie des enregistrements (ex. portion 2026 présente 2×), ce qui double
+        # les volumes et fausse variations / hausses. On retire les lignes STRICTEMENT
+        # identiques (doublon d'enregistrement complet, Index compris). Scopé à l'aérien :
+        # zéro impact sur le maritime (qui n'a pas ce défaut d'extraction).
+        if data_type == 'aerien':
+            _n_before = len(df_raw)
+            df_raw = df_raw.drop_duplicates().reset_index(drop=True)
+            _n_removed = _n_before - len(df_raw)
+            if _n_removed:
+                st.markdown(f"<div class='log-box log-box-ok'>Garde-fou aérien : "
+                            f"<b>{_n_removed}</b> ligne(s) en doublon exact supprimée(s).</div>",
+                            unsafe_allow_html=True)
         active_expected = EXPECTED_COLS_AERIEN if data_type == 'aerien' else EXPECTED_COLS
         active_optional = OPTIONAL_COLS_AERIEN if data_type == 'aerien' else OPTIONAL_COLS
         type_label = "AÉRIEN" if data_type == 'aerien' else "MARITIME"

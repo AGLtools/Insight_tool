@@ -22,6 +22,15 @@ import pandas as pd
 import numpy as np
 import decimal
 
+# Moteur de lecture .xlsx : « calamine » est ~3x plus rapide qu'openpyxl pour
+# des résultats strictement identiques. Repli automatique sur openpyxl si la
+# librairie python-calamine n'est pas installée (aucune régression).
+try:
+    import python_calamine  # noqa: F401
+    _XLSX_ENGINE = 'calamine'
+except Exception:
+    _XLSX_ENGINE = 'openpyxl'
+
 
 # ─────────────────────────────────────────────
 #  ARRONDI ARITHMÉTIQUE (0,5 -> 1)
@@ -1857,12 +1866,12 @@ def scan_uploaded_file(file_obj):
     {sheet, dtype, columns_mapping, df_raw, mois_dispo, annees, flux_dispo,
      pays_dispo, conditionnement_dispo}
     """
-    xls = pd.ExcelFile(file_obj)
+    xls = pd.ExcelFile(file_obj, engine=_XLSX_ENGINE)
     sheet_names = xls.sheet_names
 
     best_sheet, best_score, dtype = sheet_names[0], -1, 'maritime'
     for s in sheet_names:
-        df_tmp = pd.read_excel(file_obj, sheet_name=s, nrows=5)
+        df_tmp = pd.read_excel(file_obj, sheet_name=s, nrows=5, engine=_XLSX_ENGINE)
         up = [str(c).upper() for c in df_tmp.columns]
         score_mar = sum(1 for al in EXPECTED_COLS.values() if any(a in up for a in al))
         score_aer = sum(1 for al in EXPECTED_COLS_AERIEN.values() if any(a in up for a in al))
@@ -1877,7 +1886,14 @@ def scan_uploaded_file(file_obj):
     expected = EXPECTED_COLS_AERIEN if dtype == 'aerien' else EXPECTED_COLS
     optional = OPTIONAL_COLS_AERIEN if dtype == 'aerien' else OPTIONAL_COLS
 
-    df_raw = pd.read_excel(file_obj, sheet_name=best_sheet)
+    df_raw = pd.read_excel(file_obj, sheet_name=best_sheet, engine=_XLSX_ENGINE)
+    # GARDE-FOU AÉRIEN : certaines extractions aériennes dupliquent à l'identique
+    # une partie des enregistrements (ex. portion 2026 présente 2×), ce qui double
+    # les volumes et fausse variations / hausses. On retire les lignes STRICTEMENT
+    # identiques (doublon d'enregistrement complet, Index compris). Scopé à l'aérien :
+    # zéro impact sur le maritime (qui n'a pas ce défaut d'extraction).
+    if dtype == 'aerien':
+        df_raw = df_raw.drop_duplicates().reset_index(drop=True)
     upper_cols = {str(c).upper(): c for c in df_raw.columns}
     mapping = {}
     for std_col, aliases in {**expected, **optional}.items():
